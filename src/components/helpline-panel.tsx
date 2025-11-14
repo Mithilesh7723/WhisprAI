@@ -4,6 +4,11 @@ import { Phone } from 'lucide-react';
 
 const helplines = [
   {
+    name: 'Tele MANAS (Govt. of India)',
+    number: '14416',
+    description: 'The national tele-mental health programme of India.',
+  },
+  {
     name: 'Vandrevala Foundation',
     number: '9999666555',
     description: 'A non-profit for mental health in India, offering free counseling.',
