@@ -1,27 +1,35 @@
 
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useMemo } from 'react';
 import { Post, AdminAction } from '@/lib/types';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { DataTable } from './data-table';
 import { columns } from './columns';
 import { ActionLog } from './action-log';
+import { useCollection, useFirestore, useUser, useMemoFirebase } from '@/firebase';
+import { collection, query, orderBy } from 'firebase/firestore';
 
-interface DashboardProps {
-    initialPosts: Post[];
-    initialActions: AdminAction[];
-}
+export function Dashboard() {
+  const firestore = useFirestore();
+  const { user } = useUser();
 
-export function Dashboard({ initialPosts, initialActions }: DashboardProps) {
-  // The component now receives initial data as props from the server component parent.
-  // It can manage its own state for filtering, sorting, etc.
-  const [posts] = useState(initialPosts);
-  const [actions] = useState(initialActions);
+  const postsQuery = useMemoFirebase(() => {
+    if (!firestore || !user) return null; // Wait for user
+    return query(collection(firestore, 'posts'), orderBy('createdAt', 'desc'));
+  }, [firestore, user]);
+
+  const actionsQuery = useMemoFirebase(() => {
+    if (!firestore || !user) return null; // Wait for user
+    return query(collection(firestore, 'adminActions'), orderBy('timestamp', 'desc'));
+  }, [firestore, user]);
+  
+  const { data: posts, isLoading: postsLoading } = useCollection<Post>(postsQuery);
+  const { data: actions, isLoading: actionsLoading } = useCollection<AdminAction>(actionsQuery);
 
   const sortedActions = useMemo(() => {
     if (!actions) return [];
-    // Sorting is still useful if we introduce client-side updates in the future.
+    // Ensure client-side sorting as well, just in case
     return actions.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
   }, [actions]);
 
@@ -32,10 +40,10 @@ export function Dashboard({ initialPosts, initialActions }: DashboardProps) {
         <TabsTrigger value="actions">Action Log</TabsTrigger>
       </TabsList>
       <TabsContent value="whispers">
-        <DataTable columns={columns} data={posts ?? []} />
+        <DataTable columns={columns} data={posts ?? []} isLoading={postsLoading} />
       </TabsContent>
       <TabsContent value="actions">
-        <ActionLog actions={sortedActions ?? []} />
+        <ActionLog actions={sortedActions ?? []} isLoading={actionsLoading} />
       </TabsContent>
     </Tabs>
   );
