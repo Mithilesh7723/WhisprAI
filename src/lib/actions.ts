@@ -4,7 +4,6 @@
 import { revalidatePath } from 'next/cache';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
-import { classifyWhisper } from '@/ai/flows/classify-whisper-messages';
 import { provideAISupportChat } from '@/ai/flows/provide-ai-support-chat';
 import { generateAdminReply } from '@/ai/flows/generate-admin-reply';
 import type { Post, AdminAction, AILabel } from './types';
@@ -26,7 +25,6 @@ import {
 import {
   getAuth,
   signInWithEmailAndPassword,
-  createUserWithEmailAndPassword,
   signOut,
 } from 'firebase/auth';
 import { initializeServerSideFirebase } from '@/firebase/server-init';
@@ -78,23 +76,14 @@ export async function adminLogin(
   const password = formData.get('password') as string;
 
   try {
-    let userCredential;
-    try {
-      userCredential = await signInWithEmailAndPassword(auth, email, password);
-    } catch (error: any) {
-      if (error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential') {
-        userCredential = await createUserWithEmailAndPassword(auth, email, password);
-      } else {
-        throw error;
-      }
-    }
+    const userCredential = await signInWithEmailAndPassword(auth, email, password);
 
     const user = userCredential.user;
     const adminRoleRef = doc(db, 'roles_admin', user.uid);
     const adminRoleDoc = await getDoc(adminRoleRef);
 
     if (!adminRoleDoc.exists()) {
-      await setDoc(adminRoleRef, {
+       await setDoc(adminRoleRef, {
         email: user.email,
         role: 'superadmin',
         createdAt: new Date().toISOString(),
@@ -116,16 +105,14 @@ export async function adminLogin(
 
   } catch (error: any) {
     console.error('Admin login process failed:', error);
+    if (error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential' || error.code === 'auth/wrong-password') {
+         return { error: 'Invalid email or password.' };
+    }
     return { error: error.message || 'An unexpected authentication error occurred.' };
   }
 
   // Redirect on success
-  redirect('/admin/dashboard');
-}
-
-
-export async function finishAdminLoginAndRedirect() {
-  revalidatePath('/admin/dashboard', 'layout');
+  revalidatePath('/admin/dashboard');
   redirect('/admin/dashboard');
 }
 
@@ -151,24 +138,14 @@ export async function adminLogout() {
   redirect('/admin/login');
 }
 
-async function verifyAdminAndLogAction(
-  targetId: string,
-  type: AdminAction['type'],
-  details: Record<string, any>
-) {
+export async function verifyAdminAndGetId() {
   const session = await getAdminSession();
-  if (!session) throw new Error('Unauthorized');
-  const db = await getDb();
-
-  const action: Omit<AdminAction, 'actionId' | 'id'> = {
-    adminId: session.adminId,
-    targetId,
-    type,
-    timestamp: new Date().toISOString(),
-    details,
-  };
-  await addDoc(collection(db, 'adminActions'), action);
+  if (!session?.adminId) {
+    throw new Error('Unauthorized: No admin session found.');
+  }
+  return session.adminId;
 }
+
 
 export async function getAllPostsForAdmin(): Promise<Post[]> {
   const session = await getAdminSession();
@@ -210,52 +187,9 @@ export async function getAdminActions(): Promise<AdminAction[]> {
   return actions;
 }
 
-export async function updatePostLabel(postId: string, newLabel: AILabel) {
-  try {
-    const db = await getDb();
-    const postRef = doc(db, 'posts', postId);
-    const postSnap = await getDoc(postRef);
-
-    if (!postSnap.exists()) return { error: 'Post not found' };
-
-    await verifyAdminAndLogAction(postId, 're-label', {
-      from: postSnap.data().aiLabel,
-      to: newLabel,
-    });
-
-    await updateDoc(postRef, { aiLabel: newLabel });
-    revalidatePath('/admin/dashboard');
-    revalidatePath('/feed');
-    return { success: true };
-  } catch (e: any) {
-    return { error: e.message };
-  }
-}
-
-export async function togglePostVisibility(postId: string) {
-    try {
-        const db = await getDb();
-        const postRef = doc(db, 'posts', postId);
-        const postSnap = await getDoc(postRef);
-
-        if (!postSnap.exists()) return { error: 'Post not found' };
-
-        const isHidden = postSnap.data().hidden || false;
-        await verifyAdminAndLogAction(postId, isHidden ? 'unhide' : 'hide', {
-            wasHidden: isHidden,
-        });
-
-        await updateDoc(postRef, { hidden: !isHidden });
-        revalidatePath('/admin/dashboard');
-        revalidatePath('/feed');
-        return { success: true };
-    } catch (e: any) {
-        return { error: e.message };
-    }
-}
-
 export async function generateAndSetAdminReply(postId: string) {
   try {
+    await verifyAdminAndGetId();
     const db = await getDb();
     const postRef = doc(db, 'posts', postId);
     const postSnap = await getDoc(postRef);
@@ -265,14 +199,10 @@ export async function generateAndSetAdminReply(postId: string) {
     
     const { reply } = await generateAdminReply({ message: postContent });
     
-    await updateDoc(postRef, { reply: reply });
-
-    await verifyAdminAndLogAction(postId, 'reply', { generatedReply: reply });
-
-    revalidatePath('/admin/dashboard');
+    // This action only returns the reply, the client will do the update
     return { success: true, reply };
-  } catch (error) {
+  } catch (error: any) {
     console.error('Failed to generate admin reply', error);
-    return { error: 'Failed to generate AI reply.' };
+    return { error: error.message || 'Failed to generate AI reply.' };
   }
 }
