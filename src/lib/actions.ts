@@ -105,3 +105,19 @@ export async function adminLogout() {
   cookies().delete(ADMIN_SESSION_COOKIE);
   redirect('/admin/login');
 }
+
+export async function getAllPostsForAdmin(): Promise<Post[]> {
+  const { firestore } = initializeServerSideFirebase();
+  const postsRef = collection(firestore, 'posts');
+  const q = query(postsRef, orderBy('createdAt', 'desc'));
+  const querySnapshot = await getDocs(q);
+  return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Post));
+}
+
+export async function getAdminActions(): Promise<AdminAction[]> {
+  const { firestore } = initializeServerSideFirebase();
+  const actionsRef = collection(firestore, 'adminActions');
+  const q = query(actionsRef, orderBy('timestamp', 'desc'));
+  const querySnapshot = await getDocs(q);
+  return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as AdminAction));
+}

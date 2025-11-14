@@ -1,40 +1,22 @@
 
-'use client';
-
-import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { getAdminSession, adminLogout } from '@/lib/actions';
+import { redirect } from 'next/navigation';
+import { getAdminSession, adminLogout, getAllPostsForAdmin, getAdminActions } from '@/lib/actions';
 import { Dashboard } from './components/dashboard';
 import { AppLogo } from '@/components/app-logo';
 import { Button } from '@/components/ui/button';
-import { LogOut, Loader2 } from 'lucide-react';
+import { LogOut } from 'lucide-react';
 import { FirebaseClientProvider } from '@/firebase';
 
-export default function AdminDashboardPage() {
-  const [session, setSession] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
-  const router = useRouter();
-
-  useEffect(() => {
-    const checkSession = async () => {
-      const currentSession = await getAdminSession();
-      if (!currentSession) {
-        router.push('/admin/login');
-      } else {
-        setSession(currentSession);
-        setLoading(false);
-      }
-    };
-    checkSession();
-  }, [router]);
-
-  if (loading || !session) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-secondary">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
+export default async function AdminDashboardPage() {
+  const session = await getAdminSession();
+  
+  if (!session) {
+    redirect('/admin/login');
   }
+
+  // Fetch data on the server now that we have a confirmed session.
+  const posts = await getAllPostsForAdmin();
+  const actions = await getAdminActions();
 
   return (
     <FirebaseClientProvider>
@@ -56,7 +38,8 @@ export default function AdminDashboardPage() {
           </div>
         </header>
         <main className="container mx-auto p-4">
-          <Dashboard />
+          {/* Pass server-fetched data as props */}
+          <Dashboard initialPosts={posts} initialActions={actions} />
         </main>
       </div>
     </FirebaseClientProvider>

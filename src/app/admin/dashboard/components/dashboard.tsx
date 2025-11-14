@@ -7,31 +7,33 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { DataTable } from './data-table';
 import { columns } from './columns';
 import { ActionLog } from './action-log';
-import { useCollection, useFirestore, useUser, useMemoFirebase } from '@/firebase';
+import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import { collection, query, orderBy } from 'firebase/firestore';
 
-export function Dashboard() {
+interface DashboardProps {
+  initialPosts: Post[];
+  initialActions: AdminAction[];
+}
+
+export function Dashboard({ initialPosts, initialActions }: DashboardProps) {
   const firestore = useFirestore();
-  const { user } = useUser();
 
   const postsQuery = useMemoFirebase(() => {
-    if (!firestore || !user) return null; // Wait for user
+    if (!firestore) return null; 
     return query(collection(firestore, 'posts'), orderBy('createdAt', 'desc'));
-  }, [firestore, user]);
+  }, [firestore]);
 
   const actionsQuery = useMemoFirebase(() => {
-    if (!firestore || !user) return null; // Wait for user
+    if (!firestore) return null;
     return query(collection(firestore, 'adminActions'), orderBy('timestamp', 'desc'));
-  }, [firestore, user]);
+  }, [firestore]);
   
+  // useCollection will use initial data and then listen for real-time updates.
   const { data: posts, isLoading: postsLoading } = useCollection<Post>(postsQuery);
   const { data: actions, isLoading: actionsLoading } = useCollection<AdminAction>(actionsQuery);
 
-  const sortedActions = useMemo(() => {
-    if (!actions) return [];
-    // Ensure client-side sorting as well, just in case
-    return actions.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-  }, [actions]);
+  const displayPosts = posts ?? initialPosts;
+  const displayActions = actions ?? initialActions;
 
   return (
     <Tabs defaultValue="whispers">
@@ -40,10 +42,10 @@ export function Dashboard() {
         <TabsTrigger value="actions">Action Log</TabsTrigger>
       </TabsList>
       <TabsContent value="whispers">
-        <DataTable columns={columns} data={posts ?? []} isLoading={postsLoading} />
+        <DataTable columns={columns} data={displayPosts} isLoading={postsLoading && !displayPosts.length} />
       </TabsContent>
       <TabsContent value="actions">
-        <ActionLog actions={sortedActions ?? []} isLoading={actionsLoading} />
+        <ActionLog actions={displayActions} isLoading={actionsLoading && !displayActions.length} />
       </TabsContent>
     </Tabs>
   );
