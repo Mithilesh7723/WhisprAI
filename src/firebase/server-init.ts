@@ -1,3 +1,4 @@
+
 // IMPORTANT: This file is for server-side Firebase initialization only.
 // It should not be imported into any client-side code.
 
