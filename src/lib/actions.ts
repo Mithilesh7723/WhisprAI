@@ -77,35 +77,30 @@ export async function adminLogin(
   const email = formData.get('email') as string;
   const password = formData.get('password') as string;
   const db = await getDb();
-
   let userCredential: UserCredential;
 
   try {
-    // Step 1: Try to sign in the user
     userCredential = await signInWithEmailAndPassword(auth, email, password);
   } catch (error: any) {
-    // Step 2: If sign-in fails because the user doesn't exist, create them
     if (error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential') {
+      // User doesn't exist, so create them
       try {
         userCredential = await createUserWithEmailAndPassword(auth, email, password);
       } catch (createError: any) {
-        console.error("Admin creation failed:", createError.code, createError.message);
-        return { error: 'Failed to create admin user.' };
+        console.error("Admin creation failed:", createError.message);
+        return { error: 'Failed to create admin user. Please try again.' };
       }
+    } else if (error.code === 'auth/wrong-password') {
+      return { error: 'Invalid email or password.' };
     } else {
-        // For other sign-in errors (like wrong password), return an error
-        console.error("Admin login failed:", error.code, error.message);
-        if (error.code === 'auth/wrong-password') {
-            return { error: 'Invalid email or password.' };
-        }
-        return { error: 'An unexpected error occurred during login.' };
+      console.error("Admin login failed:", error.message);
+      return { error: 'An unexpected error occurred during login.' };
     }
   }
 
+  // If we've reached here, userCredential is guaranteed to be valid
   try {
     const adminId = userCredential.user.uid;
-
-    // Step 3: Check for the admin role document in Firestore and create if it doesn't exist
     const adminRoleRef = doc(db, 'roles_admin', adminId);
     const adminRoleDoc = await getDoc(adminRoleRef);
 
@@ -117,7 +112,6 @@ export async function adminLogin(
       });
     }
 
-    // Step 4: Set the session cookie
     const session = { 
         adminId: adminId, 
         email: userCredential.user.email,
@@ -135,7 +129,7 @@ export async function adminLogin(
     return { error: 'An unexpected error occurred after login.' };
   }
 
-  // Redirect on success
+  revalidatePath('/admin/dashboard');
   redirect('/admin/dashboard');
 }
 
