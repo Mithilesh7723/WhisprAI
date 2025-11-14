@@ -78,7 +78,8 @@ export async function adminLogin(
       maxAge: 60 * 60 * 24, // 1 day
       path: '/',
     });
-
+    // This redirect was missing from the success path.
+    redirect('/admin/dashboard');
   } catch (error: any) {
     console.error('Admin login process failed:', error);
     if (error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential' || error.code === 'auth/wrong-password') {
@@ -87,7 +88,6 @@ export async function adminLogin(
     return { error: error.message || 'An unexpected authentication error occurred.' };
   }
 
-  redirect('/admin/dashboard');
 }
 
 export async function getAdminSession() {
