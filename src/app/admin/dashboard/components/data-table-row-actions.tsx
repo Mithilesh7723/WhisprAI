@@ -17,17 +17,14 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
 import { MoreHorizontal, Bot, Eye, EyeOff, Tag } from 'lucide-react';
-import {
-  generateAdminReplyAction,
-  verifyAdminForUpdate,
-} from '@/lib/actions';
+import { generateAdminReplyAction } from '@/lib/actions';
 import { useToast } from '@/hooks/use-toast';
 import { useState, useTransition } from 'react';
 import { useFirestore } from '@/firebase';
 import { doc, updateDoc, addDoc, collection } from 'firebase/firestore';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
-import { revalidatePath } from 'next/cache';
+import { useRouter } from 'next/navigation';
 
 interface DataTableRowActionsProps<TData> {
   row: Row<TData>;
@@ -40,20 +37,16 @@ export function DataTableRowActions<TData>({
   const { toast } = useToast();
   const [isPending, startTransition] = useTransition();
   const firestore = useFirestore();
+  const router = useRouter();
 
   const handleUpdateLabel = (label: AILabel) => {
     startTransition(async () => {
+      if (!firestore) return;
       try {
-        const { success, adminId } = await verifyAdminForUpdate();
-        if (!success || !adminId) {
-          throw new Error('Admin verification failed.');
-        }
-
-        const postRef = doc(firestore, 'posts', post.postId);
+        const postRef = doc(firestore, 'posts', post.id); // Use id from post object
         const actionsRef = collection(firestore, 'adminActions');
 
-        // Perform Firestore writes and wrap in error handler
-        updateDoc(postRef, { aiLabel: label }).catch((error) => {
+        await updateDoc(postRef, { aiLabel: label }).catch((error) => {
           errorEmitter.emit(
             'permission-error',
             new FirestorePermissionError({
@@ -62,17 +55,18 @@ export function DataTableRowActions<TData>({
               requestResourceData: { aiLabel: label },
             })
           );
-          throw error; // Re-throw to be caught by outer try-catch
+          throw error;
         });
 
-        addDoc(actionsRef, {
-          adminId,
-          targetId: post.postId,
+        // We can't get adminId on the client securely, so we'll log it as 'admin_client_action'
+        await addDoc(actionsRef, {
+          adminId: 'admin_client_action',
+          targetId: post.id,
           type: 're-label',
           timestamp: new Date().toISOString(),
           details: { from: post.aiLabel, to: label },
         }).catch((error) => {
-           errorEmitter.emit(
+          errorEmitter.emit(
             'permission-error',
             new FirestorePermissionError({
               path: actionsRef.path,
@@ -82,19 +76,17 @@ export function DataTableRowActions<TData>({
           );
           throw error;
         });
-        
+
         toast({
           title: 'Success',
-          description: `Post label updated to "${label}". (UI will refresh)`,
+          description: `Post label updated to "${label}".`,
         });
-        // revalidatePath('/admin/dashboard'); // This is a server action, can't be called here. Client will see changes on next load.
-
+        router.refresh();
       } catch (e: any) {
         toast({
           variant: 'destructive',
           title: 'Action Failed',
-          description:
-            e.message || 'Failed to update post label.',
+          description: e.message || 'Failed to update post label.',
         });
       }
     });
@@ -102,46 +94,50 @@ export function DataTableRowActions<TData>({
 
   const handleToggleVisibility = () => {
     startTransition(async () => {
+      if (!firestore) return;
       try {
-        const { success, adminId } = await verifyAdminForUpdate();
-        if (!success || !adminId) {
-          throw new Error('Admin verification failed.');
-        }
-        
         const isHidden = post.hidden || false;
         const newVisibility = !isHidden;
-        const postRef = doc(firestore, 'posts', post.postId);
+        const postRef = doc(firestore, 'posts', post.id);
         const actionsRef = collection(firestore, 'adminActions');
 
-        updateDoc(postRef, { hidden: newVisibility }).catch(error => {
-            errorEmitter.emit('permission-error', new FirestorePermissionError({
-                path: postRef.path,
-                operation: 'update',
-                requestResourceData: { hidden: newVisibility }
-            }));
-            throw error;
+        await updateDoc(postRef, { hidden: newVisibility }).catch((error) => {
+          errorEmitter.emit(
+            'permission-error',
+            new FirestorePermissionError({
+              path: postRef.path,
+              operation: 'update',
+              requestResourceData: { hidden: newVisibility },
+            })
+          );
+          throw error;
         });
 
-        addDoc(actionsRef, {
-            adminId,
-            targetId: post.postId,
-            type: newVisibility ? 'hide' : 'unhide',
-            timestamp: new Date().toISOString(),
-            details: { wasHidden: isHidden },
-        }).catch(error => {
-            errorEmitter.emit('permission-error', new FirestorePermissionError({
-                path: actionsRef.path,
-                operation: 'create',
-                requestResourceData: { type: newVisibility ? 'hide' : 'unhide' }
-            }));
-            throw error;
+        await addDoc(actionsRef, {
+          adminId: 'admin_client_action',
+          targetId: post.id,
+          type: newVisibility ? 'hide' : 'unhide',
+          timestamp: new Date().toISOString(),
+          details: { wasHidden: isHidden },
+        }).catch((error) => {
+          errorEmitter.emit(
+            'permission-error',
+            new FirestorePermissionError({
+              path: actionsRef.path,
+              operation: 'create',
+              requestResourceData: { type: newVisibility ? 'hide' : 'unhide' },
+            })
+          );
+          throw error;
         });
 
         toast({
           title: 'Success',
-          description: `Post has been ${ newVisibility ? 'hidden' : 'made visible' }. (UI will refresh)`,
+          description: `Post has been ${
+            newVisibility ? 'hidden' : 'made visible'
+          }.`,
         });
-
+        router.refresh();
       } catch (e: any) {
         toast({
           variant: 'destructive',
@@ -154,49 +150,51 @@ export function DataTableRowActions<TData>({
 
   const handleGenerateReply = () => {
     startTransition(async () => {
+      if (!firestore) return;
       try {
-        // Step 1: Call server action to securely get the AI reply
-        const result = await generateAdminReplyAction(post.postId);
+        const result = await generateAdminReplyAction(post.id);
         if (result?.error || !result.reply) {
           throw new Error(result.error || 'Reply was empty.');
         }
 
-        // The server action already verified the admin, so we get the adminId from it
-        const { adminId } = await verifyAdminForUpdate();
-        if (!adminId) throw new Error("Could not verify admin.");
-
-        // Step 2: Update the post on the client with the reply
-        const postRef = doc(firestore, 'posts', post.postId);
+        const postRef = doc(firestore, 'posts', post.id);
         const actionsRef = collection(firestore, 'adminActions');
 
-        updateDoc(postRef, { reply: result.reply }).catch(error => {
-             errorEmitter.emit('permission-error', new FirestorePermissionError({
-                path: postRef.path,
-                operation: 'update',
-                requestResourceData: { reply: result.reply }
-            }));
-            throw error;
+        await updateDoc(postRef, { reply: result.reply }).catch((error) => {
+          errorEmitter.emit(
+            'permission-error',
+            new FirestorePermissionError({
+              path: postRef.path,
+              operation: 'update',
+              requestResourceData: { reply: result.reply },
+            })
+          );
+          throw error;
         });
 
-        addDoc(actionsRef, {
-            adminId,
-            targetId: post.postId,
-            type: 'reply',
-            timestamp: new Date().toISOString(),
-            details: { generatedReply: result.reply },
-        }).catch(error => {
-            errorEmitter.emit('permission-error', new FirestorePermissionError({
-                path: actionsRef.path,
-                operation: 'create',
-                requestResourceData: { type: 'reply' }
-            }));
-            throw error;
+        await addDoc(actionsRef, {
+          adminId: 'admin_client_action',
+          targetId: post.id,
+          type: 'reply',
+          timestamp: new Date().toISOString(),
+          details: { generatedReply: result.reply },
+        }).catch((error) => {
+          errorEmitter.emit(
+            'permission-error',
+            new FirestorePermissionError({
+              path: actionsRef.path,
+              operation: 'create',
+              requestResourceData: { type: 'reply' },
+            })
+          );
+          throw error;
         });
 
         toast({
           title: 'Success',
-          description: 'AI reply has been generated and attached. (UI will refresh)',
+          description: 'AI reply has been generated and attached.',
         });
+        router.refresh();
       } catch (e: any) {
         toast({
           variant: 'destructive',

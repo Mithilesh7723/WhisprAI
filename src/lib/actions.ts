@@ -85,13 +85,18 @@ export async function adminLogin(
 }
 
 export async function finishAdminLoginAndRedirect() {
-    const adminId = await verifyAdminAndGetId(); // Ensures this can only be called by a logged-in user
     const { auth } = initializeServerSideFirebase();
     const user = auth.currentUser;
 
+    if (!user) {
+        // This should not happen if called after a successful client-side auth.
+        redirect('/admin/login');
+        return;
+    }
+    
     const session = {
-      adminId: adminId,
-      email: user?.email, // This might be null if server instance is different
+      adminId: user.uid,
+      email: user.email,
       loggedInAt: Date.now(),
     };
     cookies().set(ADMIN_SESSION_COOKIE, JSON.stringify(session), {
@@ -147,7 +152,6 @@ export async function getAllPostsForAdmin(): Promise<Post[]> {
     const data = doc.data();
     const createdAt = (data.createdAt as any)?.toDate ? (data.createdAt as Timestamp).toDate().toISOString() : data.createdAt;
     posts.push({ 
-        postId: doc.id, 
         id: doc.id,
         ...data,
         createdAt,
@@ -165,7 +169,7 @@ export async function getAdminActions(): Promise<AdminAction[]> {
   const querySnapshot = await getDocs(q);
   const actions: AdminAction[] = [];
   querySnapshot.forEach((doc) => {
-    actions.push({ actionId: doc.id, id: doc.id, ...doc.data() } as AdminAction);
+    actions.push({ id: doc.id, ...doc.data() } as AdminAction);
   });
   return actions;
 }
@@ -191,10 +195,4 @@ export async function generateAdminReplyAction(postId: string) {
     console.error('Failed to generate admin reply', error);
     return { error: error.message || 'Failed to generate AI reply.' };
   }
-}
-
-// This is now just a verifier. The client does the write.
-export async function verifyAdminForUpdate() {
-  const adminId = await verifyAdminAndGetId();
-  return { success: true, adminId };
 }
