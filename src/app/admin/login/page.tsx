@@ -31,18 +31,18 @@ function AdminLoginContent() {
   const [state, formAction] = useActionState(adminLogin, { error: undefined });
   const [isFinishingLogin, setIsFinishingLogin] = React.useState(false);
   const firestore = useFirestore();
+  const { user, isUserLoading } = useUser();
   const { toast } = useToast();
 
   useEffect(() => {
     async function finishLogin() {
-      // We proceed only if the server action was successful and returned a user.
-      if (state?.success && state.user && firestore) {
+      // We proceed only after Firebase client auth state has updated and it's a real user (not anonymous)
+      if (user && !user.isAnonymous && !isUserLoading && firestore) {
         setIsFinishingLogin(true);
-        const { uid, email } = state.user;
+        const { uid, email } = user;
         const adminRoleRef = doc(firestore, 'roles_admin', uid);
 
         try {
-          // Check if the admin role document exists for the logged-in user.
           const adminRoleDoc = await getDoc(adminRoleRef).catch(error => {
              errorEmitter.emit(
               'permission-error',
@@ -51,17 +51,15 @@ function AdminLoginContent() {
                 operation: 'get',
               })
              );
-             throw error; // Re-throw to be caught by the outer try-catch
+             throw error;
           });
 
-          // If the document doesn't exist, create it.
           if (!adminRoleDoc.exists()) {
             const newRole = { 
                 email: email,
                 role: 'superadmin',
                 createdAt: new Date().toISOString()
             };
-            // Use .catch for non-blocking error handling for the write operation.
             setDoc(adminRoleRef, newRole).catch(error => {
                 errorEmitter.emit(
                 'permission-error',
@@ -71,22 +69,19 @@ function AdminLoginContent() {
                     requestResourceData: newRole
                 })
                 );
-                // Show an error to the user but don't re-throw, as the emitter handles the dev overlay.
                 toast({
                     variant: "destructive",
                     title: "Role Creation Failed",
                     description: "Could not create the admin role. Check console for details.",
                 });
-                setIsFinishingLogin(false); // Stop the loading spinner
-                return; // Stop execution
+                setIsFinishingLogin(false);
+                return;
             });
           }
           
-          // If we've successfully checked/created the role, proceed to the dashboard.
           await finishAdminLoginAndRedirect();
 
         } catch (error) {
-          // This will catch errors from getDoc or other issues.
           console.error("Failed to finish admin login:", error);
            toast({
             variant: "destructive",
@@ -98,9 +93,17 @@ function AdminLoginContent() {
       }
     }
     finishLogin();
-  }, [state, firestore, toast]);
+  }, [user, isUserLoading, firestore, toast]);
+  
+  // Set loading state based on server action pending status
+  useEffect(() => {
+    if (state?.pending) {
+        setIsFinishingLogin(true);
+    }
+  }, [state])
 
-  if (isFinishingLogin) {
+
+  if (isFinishingLogin || isUserLoading) {
     return (
         <div className="flex min-h-screen flex-col items-center justify-center bg-secondary p-4 text-center">
             <Loader2 className="h-8 w-8 animate-spin text-primary mb-4" />
