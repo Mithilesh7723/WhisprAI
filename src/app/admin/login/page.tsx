@@ -46,8 +46,8 @@ function AdminLoginContent() {
                 <AlertDescription>{state.error}</AlertDescription>
               </Alert>
             )}
-             <div className="space-y-2">
-                <p className="text-sm text-muted-foreground">Demo credentials:</p>
+             <div className="space-y-2 rounded-md border bg-muted/50 p-3">
+                <p className="text-sm text-muted-foreground">Demo credentials are pre-filled:</p>
                 <p className="text-sm font-mono">Email: admin@whispr.com</p>
                 <p className="text-sm font-mono">Password: password123</p>
             </div>

@@ -29,6 +29,7 @@ import {
   createUserWithEmailAndPassword,
 } from 'firebase/auth';
 import { initializeServerSideFirebase } from '@/firebase/server-init';
+import { setDocumentNonBlocking, addDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase';
 
 async function getDb() {
   const { firestore } = initializeServerSideFirebase();
@@ -86,7 +87,7 @@ export async function postWhisper(
     const db = await getDb();
     const classification = await classifyWhisper({ content });
     
-    await addDoc(collection(db, 'posts'), {
+    addDocumentNonBlocking(collection(db, 'posts'), {
       userId,
       content,
       createdAt: serverTimestamp(),
@@ -129,12 +130,6 @@ export async function sendChatMessage(
       userId,
       sessionId: sessionId,
     });
-
-    const userMessage: ChatMessage = {
-      sender: 'user',
-      text: message,
-      timestamp: new Date().toISOString(),
-    };
     
     const aiMessage: ChatMessage = {
       sender: 'ai',
@@ -144,7 +139,7 @@ export async function sendChatMessage(
 
     const updatedMessages = [...history, aiMessage];
     
-    await setDoc(chatDocRef, {
+    setDocumentNonBlocking(chatDocRef, {
         userId: userId,
         messages: updatedMessages,
         escalated: aiResult.escalate,
@@ -178,13 +173,39 @@ export async function adminLogin(
   const db = await getDb();
 
   try {
+     // Special handling for demo user
+    if (email === 'admin@whispr.com') {
+      try {
+        // Attempt to create the user. If they already exist, this will fail, and we'll sign them in.
+        const newUserCredential = await createUserWithEmailAndPassword(auth, email, password);
+        const adminId = newUserCredential.user.uid;
+        // Set admin role in Firestore
+        await setDoc(doc(db, 'roles_admin', adminId), { 
+          email: email,
+          role: 'superadmin',
+          createdAt: serverTimestamp() 
+        });
+      } catch (error: any) {
+        // If user already exists, that's fine, we'll just log them in.
+        if (error.code !== 'auth/email-already-in-use') {
+          // For other creation errors, we should fail.
+          console.error("Admin user creation failed:", error);
+          return { error: 'Failed to set up admin user.' };
+        }
+      }
+    }
+
+    // Sign in the user
     const userCredential = await signInWithEmailAndPassword(auth, email, password);
     
+    // Verify admin role
     const adminRoleDoc = await getDoc(doc(db, 'roles_admin', userCredential.user.uid));
     if (!adminRoleDoc.exists()) {
+        await signOut(auth); // Sign out if not an admin
         throw new Error("User does not have admin privileges.");
     }
 
+    // Set session cookie
     const session = { 
         adminId: userCredential.user.uid, 
         email: userCredential.user.email,
@@ -199,37 +220,15 @@ export async function adminLogin(
     });
 
   } catch (error: any) {
-    // If user not found and it's the demo admin, create them
-    if (error.code === 'auth/user-not-found' && email === 'admin@whispr.com') {
-      try {
-        const newUserCredential = await createUserWithEmailAndPassword(auth, email, password);
-        const adminId = newUserCredential.user.uid;
-        
-        // Set admin role in Firestore
-        await setDoc(doc(db, 'roles_admin', adminId), { 
-          email: email,
-          role: 'superadmin',
-          createdAt: serverTimestamp() 
-        });
-
-        // Log the user in by re-calling this function, which will now succeed
-        return adminLogin(prevState, formData);
-
-      } catch (creationError: any) {
-        console.error("Admin user creation failed:", creationError);
-        return { error: 'Failed to create admin user.' };
-      }
-    }
-
     let errorMessage = 'Invalid email or password.';
-    if (error.message.includes('admin')) {
+    if (error.message.includes('admin privileges')) {
         errorMessage = error.message;
     }
     console.error("Admin login failed:", error.code, error.message);
     return { error: errorMessage };
   }
 
-  // Redirect happens outside the try/catch
+  // Redirect on success
   redirect('/admin/dashboard');
 }
 
@@ -270,7 +269,7 @@ async function verifyAdminAndLogAction(
     timestamp: new Date().toISOString(),
     details,
   };
-  await addDoc(collection(db, 'adminActions'), action);
+  await addDocumentNonBlocking(collection(db, 'adminActions'), action);
 }
 
 export async function getAllPostsForAdmin(): Promise<Post[]> {
@@ -325,7 +324,7 @@ export async function updatePostLabel(postId: string, newLabel: AILabel) {
       to: newLabel,
     });
 
-    await updateDoc(postRef, { aiLabel: newLabel });
+    updateDocumentNonBlocking(postRef, { aiLabel: newLabel });
     revalidatePath('/admin/dashboard');
     revalidatePath('/feed');
     return { success: true };
@@ -347,7 +346,7 @@ export async function togglePostVisibility(postId: string) {
             wasHidden: isHidden,
         });
 
-        await updateDoc(postRef, { hidden: !isHidden });
+        updateDocumentNonBlocking(postRef, { hidden: !isHidden });
         revalidatePath('/admin/dashboard');
         revalidatePath('/feed');
         return { success: true };
@@ -367,7 +366,7 @@ export async function generateAndSetAdminReply(postId: string) {
     
     const { reply } = await generateAdminReply({ message: postContent });
     
-    await updateDoc(postRef, { reply: reply });
+    updateDocumentNonBlocking(postRef, { reply: reply });
 
     await verifyAdminAndLogAction(postId, 'reply', { generatedReply: reply });
 
