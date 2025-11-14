@@ -1,17 +1,18 @@
 
-import { getAdminSession, getAllPostsForAdmin, getAdminActions, adminLogout } from '@/lib/actions';
+import { getAdminSession } from '@/lib/actions';
 import { redirect } from 'next/navigation';
 import { Dashboard } from './components/dashboard';
 import { AppLogo } from '@/components/app-logo';
 import { Button } from '@/components/ui/button';
 import { LogOut } from 'lucide-react';
 import { FirebaseClientProvider } from '@/firebase/client-provider';
+import { adminLogout } from '@/lib/actions';
 
 export const metadata = {
   title: 'Admin Dashboard - Whispr',
 };
 
-// This ensures the page is always dynamically rendered to get fresh data
+// This ensures the page is always dynamically rendered to check the session
 export const dynamic = 'force-dynamic';
 
 export default async function AdminDashboardPage() {
@@ -20,33 +21,31 @@ export default async function AdminDashboardPage() {
     redirect('/admin/login');
   }
 
-  // Fetch data on the server. The components will be client components
-  // but they will receive this initial data as props.
-  const posts = await getAllPostsForAdmin();
-  const actions = await getAdminActions();
+  // Data will now be fetched on the client side inside the Dashboard component.
 
   return (
-    // The Firebase provider is needed because the row actions are client components that use Firestore
-    <FirebaseClientProvider> 
-        <div className="min-h-screen bg-secondary">
+    // The Firebase provider is needed because the dashboard now fetches its own data on the client.
+    <FirebaseClientProvider>
+      <div className="min-h-screen bg-secondary">
         <header className="sticky top-0 z-10 border-b bg-background/80 backdrop-blur-sm">
-            <div className="container mx-auto flex h-16 items-center justify-between px-4">
+          <div className="container mx-auto flex h-16 items-center justify-between px-4">
             <div className="flex items-center gap-4">
-                <AppLogo />
-                <span className="text-sm font-medium text-muted-foreground">Admin Dashboard</span>
+              <AppLogo />
+              <span className="text-sm font-medium text-muted-foreground">Admin Dashboard</span>
             </div>
             <form action={adminLogout}>
-                <Button variant="ghost" size="sm">
+              <Button variant="ghost" size="sm">
                 <LogOut className="mr-2 h-4 w-4" />
                 Sign Out
-                </Button>
+              </Button>
             </form>
-            </div>
+          </div>
         </header>
         <main className="container mx-auto p-4">
-            <Dashboard posts={posts} actions={actions} />
+          {/* The dashboard component will now handle its own data fetching. */}
+          <Dashboard />
         </main>
-        </div>
+      </div>
     </FirebaseClientProvider>
   );
 }

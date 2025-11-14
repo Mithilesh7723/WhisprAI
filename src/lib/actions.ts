@@ -1,30 +1,18 @@
 
 'use server';
 
-import { revalidatePath } from 'next/cache';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { provideAISupportChat } from '@/ai/flows/provide-ai-support-chat';
-import type { Post, AdminAction } from './types';
 import {
   getFirestore,
-  addDoc,
-  collection,
-  getDocs,
-  query,
-  orderBy,
-  where,
   doc,
   getDoc,
-  updateDoc,
-  limit,
   setDoc,
-  Timestamp,
 } from 'firebase/firestore';
 import {
   getAuth,
   signInWithEmailAndPassword,
-  signOut,
 } from 'firebase/auth';
 import { initializeServerSideFirebase } from '@/firebase/server-init';
 
@@ -73,8 +61,6 @@ export async function adminLogin(
     const adminRoleDoc = await getDoc(adminRoleRef);
 
     if (!adminRoleDoc.exists()) {
-      // This is a first-time admin login, create the role document.
-      // This might fail if security rules are restrictive, which is a valid security posture.
       try {
         await setDoc(adminRoleRef, {
           email: user.email,
@@ -83,13 +69,10 @@ export async function adminLogin(
         });
       } catch (dbError: any) {
         console.error(`Failed to create admin role for ${user.uid}:`, dbError);
-        // This is a critical error. The user is authenticated but cannot be granted admin rights in the DB.
-        // We must not set the session cookie.
         return { error: 'Authentication successful, but failed to grant admin permissions. Please check Firestore rules.' };
       }
     }
     
-    // Auth and DB checks passed, set the session cookie.
     const session = {
       adminId: user.uid,
       email: user.email,
@@ -111,7 +94,6 @@ export async function adminLogin(
     return { error: error.message || 'An unexpected authentication error occurred.' };
   }
 
-  // If all steps are successful, redirect to the dashboard.
   redirect('/admin/dashboard');
 }
 
@@ -126,56 +108,6 @@ export async function getAdminSession() {
 }
 
 export async function adminLogout() {
-  // We don't need to interact with Firebase Auth state on the server for logout.
-  // Simply clearing the cookie is enough to invalidate the session.
   cookies().delete(ADMIN_SESSION_COOKIE);
   redirect('/admin/login');
-}
-
-
-async function getDbForAdmin() {
-  const session = await getAdminSession();
-  if (!session?.adminId) {
-    throw new Error('Unauthorized: No admin session found or session is invalid.');
-  }
-  // We can trust the session, so we can initialize Firebase on the server.
-  // Security rules will still be the ultimate authority.
-  const { firestore } = initializeServerSideFirebase();
-  return firestore;
-}
-
-
-export async function getAllPostsForAdmin(): Promise<Post[]> {
-  const db = await getDbForAdmin();
-  const postsRef = collection(db, 'posts');
-  const q = query(postsRef, orderBy('createdAt', 'desc'));
-
-  const querySnapshot = await getDocs(q);
-  const posts: Post[] = [];
-  querySnapshot.forEach((doc) => {
-    const data = doc.data();
-    // Safely convert Firestore Timestamp to ISO string
-    const createdAt = (data.createdAt as any)?.toDate ? (data.createdAt as Timestamp).toDate().toISOString() : data.createdAt;
-    posts.push({ 
-        id: doc.id,
-        ...data,
-        createdAt,
-    } as Post);
-  });
-  return posts;
-}
-
-export async function getAdminActions(): Promise<AdminAction[]> {
-  const db = await getDbForAdmin();
-  const actionsRef = collection(db, 'adminActions');
-  const q = query(actionsRef, orderBy('timestamp', 'desc'), limit(50));
-
-  const querySnapshot = await getDocs(q);
-  const actions: AdminAction[] = [];
-  querySnapshot.forEach((doc) => {
-    const data = doc.data();
-    const timestamp = (data.timestamp as any)?.toDate ? (data.timestamp as Timestamp).toDate().toISOString() : data.timestamp;
-    actions.push({ id: doc.id, ...data, timestamp } as AdminAction);
-  });
-  return actions;
 }
