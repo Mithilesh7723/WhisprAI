@@ -79,8 +79,7 @@ export default function Feed() {
     // Query for posts that are not hidden and order them by creation date
     return query(
       collection(firestore, 'posts'),
-      where('hidden', '!=', true),
-      orderBy('hidden', 'asc'), // This is a trick to be able to use a not-equal operator with an order by
+      where('hidden', '==', false),
       orderBy('createdAt', 'desc')
     );
   }, [firestore, user]);
@@ -142,7 +141,7 @@ export default function Feed() {
           new FirestorePermissionError({
             path: postsCollection.path,
             operation: 'create',
-            requestResourceData: { content: '... sensitive content ...' },
+            requestResourceData: { content: '... sensitive content ...', hidden: false },
           })
          );
          throw error;

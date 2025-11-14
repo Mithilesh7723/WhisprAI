@@ -27,15 +27,16 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Admins have full read/write. Authenticated users can list posts. Only the post owner can read, update or delete their own post.
+     * @description Admins have full read/write. Authenticated users can list public posts. Only the post owner can read, update or delete their own post.
      * @path /posts/{postId}
      */
     match /posts/{postId} {
-      allow read: if isAdmin();
-      allow list: if isSignedIn();
-      allow get: if isSignedIn() && (resource.data.userId == request.auth.uid || resource.data.hidden != true);
-      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
-      allow update, delete: if isSignedIn() && isExistingOwner(resource.data.userId);
+      allow read, write: if isAdmin();
+      allow list: if isSignedIn() && request.query.where.hidden == false;
+      allow get: if isSignedIn() && resource.data.hidden == false;
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid && request.resource.data.hidden == false;
+      allow update: if isSignedIn() && isExistingOwner(resource.data.userId);
+      allow delete: if isSignedIn() && isExistingOwner(resource.data.userId);
     }
 
     /**
