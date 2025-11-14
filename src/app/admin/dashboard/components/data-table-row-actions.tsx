@@ -46,7 +46,7 @@ export function DataTableRowActions<TData>({
         const postRef = doc(firestore, 'posts', post.id);
         const actionsRef = collection(firestore, 'adminActions');
 
-        await updateDoc(postRef, { aiLabel: label }).catch((error) => {
+        updateDoc(postRef, { aiLabel: label }).catch((error) => {
           errorEmitter.emit(
             'permission-error',
             new FirestorePermissionError({
@@ -60,7 +60,7 @@ export function DataTableRowActions<TData>({
 
         // We can't get adminId on the client securely, so we'll log it as 'admin_client_action'
         // Security rules should enforce that only admins can write to this collection.
-        await addDoc(actionsRef, {
+        addDoc(actionsRef, {
           adminId: 'admin_client_action',
           targetId: post.id,
           type: 're-label',
@@ -105,7 +105,7 @@ export function DataTableRowActions<TData>({
         const postRef = doc(firestore, 'posts', post.id);
         const actionsRef = collection(firestore, 'adminActions');
 
-        await updateDoc(postRef, { hidden: newVisibility }).catch((error) => {
+        updateDoc(postRef, { hidden: newVisibility }).catch((error) => {
           errorEmitter.emit(
             'permission-error',
             new FirestorePermissionError({
@@ -117,7 +117,7 @@ export function DataTableRowActions<TData>({
           throw error;
         });
 
-        await addDoc(actionsRef, {
+        addDoc(actionsRef, {
           adminId: 'admin_client_action',
           targetId: post.id,
           type: newVisibility ? 'hide' : 'unhide',
@@ -167,7 +167,7 @@ export function DataTableRowActions<TData>({
         const postRef = doc(firestore, 'posts', post.id);
         const actionsRef = collection(firestore, 'adminActions');
 
-        await updateDoc(postRef, { reply: result.reply }).catch((error) => {
+        updateDoc(postRef, { reply: result.reply }).catch((error) => {
           errorEmitter.emit(
             'permission-error',
             new FirestorePermissionError({
@@ -179,7 +179,7 @@ export function DataTableRowActions<TData>({
           throw error;
         });
 
-        await addDoc(actionsRef, {
+        addDoc(actionsRef, {
           adminId: 'admin_client_action',
           targetId: post.id,
           type: 'reply',
