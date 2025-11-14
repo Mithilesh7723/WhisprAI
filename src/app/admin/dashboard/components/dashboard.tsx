@@ -15,14 +15,16 @@ export function Dashboard() {
   const { user } = useUser();
 
   const postsQuery = useMemoFirebase(() => {
-    if (!firestore || !user) return null; // Wait for user to be authenticated
+    // Only create the query if the user is authenticated on the client.
+    if (!firestore || !user) return null;
     return query(collection(firestore, 'posts'), orderBy('createdAt', 'desc'));
   }, [firestore, user]);
 
   const { data: posts, isLoading: postsLoading } = useCollection<Post>(postsQuery);
 
   const actionsQuery = useMemoFirebase(() => {
-    if (!firestore || !user) return null; // Wait for user to be authenticated
+    // Only create the query if the user is authenticated on the client.
+    if (!firestore || !user) return null;
     return query(collection(firestore, 'adminActions'), orderBy('timestamp', 'desc'), limit(50));
   }, [firestore, user]);
 
@@ -34,6 +36,8 @@ export function Dashboard() {
     return actions.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
   }, [actions]);
 
+  const areQueriesLoading = postsLoading || actionsLoading;
+
   return (
     <Tabs defaultValue="whispers">
       <TabsList className="grid w-full grid-cols-2 sm:w-96">
@@ -41,10 +45,10 @@ export function Dashboard() {
         <TabsTrigger value="actions">Action Log</TabsTrigger>
       </TabsList>
       <TabsContent value="whispers">
-        <DataTable columns={columns} data={posts || []} isLoading={postsLoading} />
+        <DataTable columns={columns} data={posts ?? []} isLoading={areQueriesLoading} />
       </TabsContent>
       <TabsContent value="actions">
-        <ActionLog actions={sortedActions || []} isLoading={actionsLoading} />
+        <ActionLog actions={sortedActions ?? []} isLoading={areQueriesLoading} />
       </TabsContent>
     </Tabs>
   );
