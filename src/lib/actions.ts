@@ -20,21 +20,22 @@ import {
   getDoc,
   updateDoc,
   writeBatch,
+  setDoc,
 } from 'firebase/firestore';
 import {
   getAuth,
   signInWithEmailAndPassword,
   signOut,
 } from 'firebase/auth';
-import { initializeFirebase } from '@/firebase';
+import { initializeServerSideFirebase } from '@/firebase/server-init';
 
 async function getDb() {
-  const { firestore } = initializeFirebase();
+  const { firestore } = initializeServerSideFirebase();
   return firestore;
 }
 
 async function getFirebaseAuth() {
-  const { auth } = initializeFirebase();
+  const { auth } = initializeServerSideFirebase();
   return auth;
 }
 
@@ -67,7 +68,7 @@ export async function getPosts(filter?: AILabel) {
 }
 
 export async function postWhisper(
-  prevState: { error?: string; success?: boolean } | undefined,
+  prevState: { error?: string; success?: boolean },
   formData: FormData
 ) {
   const content = formData.get('content') as string;
@@ -110,7 +111,7 @@ export async function sendChatMessage(
   try {
     const db = await getDb();
     // Check for an existing chat session
-    const chatQuery = query(collection(db, 'aiChats'), where('userId', '==', userId));
+    const chatQuery = query(collection(db, 'aiChats'), where('userId', '==', userId), limit(1));
     const querySnapshot = await getDocs(chatQuery);
     let sessionId: string | undefined;
     let chatDocRef;
@@ -143,7 +144,8 @@ export async function sendChatMessage(
       timestamp: new Date().toISOString(),
     };
 
-    const updatedMessages = [...history, userMessage, aiMessage];
+    // The full history is now passed from the client, so we just use it directly
+    const updatedMessages = [...history, aiMessage];
     
     await setDoc(chatDocRef, {
         userId: userId,
@@ -170,7 +172,7 @@ export async function sendChatMessage(
 const ADMIN_SESSION_COOKIE = 'whispr-admin-session';
 
 export async function adminLogin(
-  prevState: { error?: string } | undefined,
+  prevState: { error?: string },
   formData: FormData
 ) {
   const auth = await getFirebaseAuth();
@@ -244,7 +246,7 @@ async function verifyAdminAndLogAction(
   if (!session) throw new Error('Unauthorized');
   const db = await getDb();
 
-  const action: Omit<AdminAction, 'actionId'> = {
+  const action: Omit<AdminAction, 'actionId' | 'id'> = {
     adminId: session.adminId,
     targetId,
     type,
@@ -277,7 +279,7 @@ export async function getAllPostsForAdmin(): Promise<Post[]> {
 export async function getAdminActions(): Promise<AdminAction[]> {
   const db = await getDb();
   const actionsRef = collection(db, 'adminActions');
-  const q = query(actionsRef, orderBy('timestamp', 'desc'));
+  const q = query(actionsRef, orderBy('timestamp', 'desc'), limit(50));
 
   const querySnapshot = await getDocs(q);
   const actions: AdminAction[] = [];
@@ -339,7 +341,8 @@ export async function generateAndSetAdminReply(postId: string) {
 
     revalidatePath('/admin/dashboard');
     return { success: true, reply };
-  } catch (error) {
+  } catch (error)
+  {
     console.error('Failed to generate admin reply', error);
     return { error: 'Failed to generate AI reply.' };
   }
