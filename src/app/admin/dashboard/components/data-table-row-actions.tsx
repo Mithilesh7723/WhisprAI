@@ -1,4 +1,3 @@
-
 'use client';
 
 import { Row } from '@tanstack/react-table';
@@ -21,10 +20,9 @@ import { generateAdminReply } from '@/ai/flows/generate-admin-reply';
 import { useToast } from '@/hooks/use-toast';
 import { useTransition } from 'react';
 import { useFirestore, useUser } from '@/firebase';
-import { doc, updateDoc, addDoc, collection } from 'firebase/firestore';
+import { doc, updateDoc, addDoc, collection, writeBatch, getDoc, setDoc, deleteDoc } from 'firebase/firestore';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
-import { useRouter } from 'next/navigation';
 
 interface DataTableRowActionsProps<TData> {
   row: Row<TData>;
@@ -38,7 +36,6 @@ export function DataTableRowActions<TData>({
   const [isPending, startTransition] = useTransition();
   const firestore = useFirestore();
   const { user } = useUser();
-  const router = useRouter();
 
   const handleUpdateLabel = (label: AILabel) => {
     startTransition(async () => {
@@ -82,7 +79,6 @@ export function DataTableRowActions<TData>({
           title: 'Success',
           description: `Post label updated to "${label}".`,
         });
-        // No need to call router.refresh() as useCollection handles updates in real-time
       } catch (e: any) {
         if (!(e instanceof FirestorePermissionError)) {
             toast({
@@ -97,60 +93,61 @@ export function DataTableRowActions<TData>({
 
   const handleToggleVisibility = () => {
     startTransition(async () => {
-      if (!firestore || !user) return;
-      const isHidden = post.hidden || false;
-      const newVisibility = !isHidden;
-      const postRef = doc(firestore, 'posts', post.id);
-      const actionsRef = collection(firestore, 'adminActions');
+        if (!firestore || !user) return;
+        const isHidden = post.hidden || false;
+        const newVisibility = !isHidden;
 
-      try {
-        await updateDoc(postRef, { hidden: newVisibility }).catch((error) => {
-          errorEmitter.emit(
-            'permission-error',
-            new FirestorePermissionError({
-              path: postRef.path,
-              operation: 'update',
-              requestResourceData: { hidden: newVisibility },
-            })
-          );
-          throw error;
-        });
+        // Define refs for source and destination collections
+        const sourceCollection = isHidden ? 'hidden_posts' : 'posts';
+        const destCollection = isHidden ? 'posts' : 'hidden_posts';
+        
+        const sourceDocRef = doc(firestore, sourceCollection, post.id);
+        const destDocRef = doc(firestore, destCollection, post.id);
+        const actionsRef = collection(firestore, 'adminActions');
 
-        await addDoc(actionsRef, {
-          adminId: user.uid,
-          targetId: post.id,
-          type: newVisibility ? 'hide' : 'unhide',
-          timestamp: new Date().toISOString(),
-          details: { wasHidden: isHidden },
-        }).catch((error) => {
-          errorEmitter.emit(
-            'permission-error',
-            new FirestorePermissionError({
-              path: actionsRef.path,
-              operation: 'create',
-              requestResourceData: { type: newVisibility ? 'hide' : 'unhide' },
-            })
-          );
-          throw error;
-        });
+        try {
+            const batch = writeBatch(firestore);
 
-        toast({
-          title: 'Success',
-          description: `Post has been ${
-            newVisibility ? 'hidden' : 'made visible'
-          }.`,
-        });
-      } catch (e: any) {
-         if (!(e instanceof FirestorePermissionError)) {
+            // 1. Get the document to move
+            const docSnap = await getDoc(sourceDocRef);
+            if (!docSnap.exists()) {
+                throw new Error("Post not found to move.");
+            }
+            const postData = docSnap.data();
+
+            // 2. Set it in the new collection
+            batch.set(destDocRef, { ...postData, hidden: newVisibility });
+
+            // 3. Delete it from the old collection
+            batch.delete(sourceDocRef);
+            
+            // 4. Log the admin action
+            const logActionPromise = addDoc(actionsRef, {
+                adminId: user.uid,
+                targetId: post.id,
+                type: newVisibility ? 'hide' : 'unhide',
+                timestamp: new Date().toISOString(),
+                details: { wasHidden: isHidden },
+            });
+            
+            // Commit the batch and wait for log
+            await Promise.all([batch.commit(), logActionPromise]);
+
             toast({
+                title: 'Success',
+                description: `Post has been ${newVisibility ? 'hidden' : 'made visible'}.`,
+            });
+        } catch (e: any) {
+            console.error("Error toggling visibility:", e);
+             toast({
                 variant: 'destructive',
                 title: 'Action Failed',
                 description: e.message || 'Failed to update post visibility.',
             });
         }
-      }
     });
-  };
+};
+
 
   const handleGenerateReply = () => {
     startTransition(async () => {

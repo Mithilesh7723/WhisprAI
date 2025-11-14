@@ -8,32 +8,38 @@
  * The rules are designed to be auditable and maintainable through the use of helper functions.
  *
  * Data Structure:
- * - /posts/{postId}: Publicly readable collection of user-generated content. Write access is restricted to the original poster. Admins have full read/write.
- * - /aiChats/{aiChatId}: Publicly readable collection of AI chat sessions. Write access is open to facilitate chat functionality. Admins have full read/write.
- * - /roles_admin/{adminId}: Collection of admin user IDs. Only admins can create/update/delete admin roles.
- * - /adminActions/{adminActionId}: Logs of actions performed by admins. Only admins can create these logs.
+ * - /posts/{postId}: Publicly readable collection of user-generated content. Write access is restricted.
+ * - /hidden_posts/{postId}: Private collection for posts hidden by admins. Only accessible by admins.
+ * - /aiChats/{aiChatId}: Publicly readable collection of AI chat sessions. Write access is open to facilitate chat functionality.
+ * - /roles_admin/{adminId}: Collection of admin user IDs.
+ * - /adminActions/{adminActionId}: Logs of actions performed by admins.
  *
  * Key Security Decisions:
- * - User listing is generally disallowed unless explicitly required and secured.
+ * - The /posts collection is publicly readable, which is safe because it only contains non-hidden posts.
+ * - The /hidden_posts collection is strictly limited to admin access.
  * - Data validation is limited to authorization-critical fields to enable rapid prototyping.
- * - The `aiChats` collection is open for writes to allow seamless chat functionality during prototyping. Consider adding rate limiting or other abuse prevention mechanisms in a production environment.
- * - Admin role management is isolated to the `roles_admin` collection, allowing for clear separation of concerns.
- *
- * Denormalization for Authorization:
- * - The `Post` entity includes a `userId` field to easily enforce ownership.
  */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Public users can read non-hidden posts. Admins have full access.
+     * @description Publicly readable collection of non-hidden posts.
+     * Anyone can read. Only authenticated users can create. Only owners/admins can update/delete.
      * @path /posts/{postId}
      */
     match /posts/{postId} {
-      allow read: if request.query.where.hidden == false || isAdmin();
-      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid && request.resource.data.hidden == false;
+      allow read: if true;
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
       allow update, delete: if (isSignedIn() && isExistingOwner(resource.data.userId)) || isAdmin();
+    }
+    
+    /**
+     * @description Private collection for hidden posts. Only admins have access.
+     * @path /hidden_posts/{postId}
+     */
+    match /hidden_posts/{postId} {
+        allow read, write: if isAdmin();
     }
 
     /**
@@ -48,7 +54,7 @@ service cloud.firestore {
     }
 
     /**
-* @description Only authenticated admins can read/write admin roles. A user can create their own admin doc to "request" promotion.
+    * @description Only authenticated admins can read/write admin roles. A user can create their own admin doc to "request" promotion.
      * @path /roles_admin/{adminId}
      */
     match /roles_admin/{adminId} {
