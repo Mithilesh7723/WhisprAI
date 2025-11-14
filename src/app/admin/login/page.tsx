@@ -2,8 +2,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { useActionState } from 'react';
-import { useFormStatus } from 'react-dom';
+import { useActionState, useFormStatus } from 'react-dom';
 import { adminLogin, finishAdminLoginAndRedirect } from '@/lib/actions';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
@@ -39,6 +38,7 @@ function AdminLoginContent() {
   const firestore = useFirestore();
   const [isFinishingLogin, setIsFinishingLogin] = useState(false);
   const [clientError, setClientError] = useState<string | null>(null);
+  const [loginFinalized, setLoginFinalized] = useState(false); // Guard state
 
   useEffect(() => {
     const finishLogin = async (userToFinalize: User) => {
@@ -61,11 +61,12 @@ function AdminLoginContent() {
               operation: 'get',
             })
           );
-          throw error; // Re-throw to be caught by the outer try-catch
+          throw error;
         });
 
         if (!adminRoleDoc.exists()) {
-          await setDoc(adminRoleRef, {
+          // Use .catch() for non-blocking error handling with the emitter
+          setDoc(adminRoleRef, {
             email: userToFinalize.email,
             role: 'superadmin',
             createdAt: new Date().toISOString(),
@@ -78,12 +79,10 @@ function AdminLoginContent() {
                 requestResourceData: { role: 'superadmin' },
               })
             );
-            throw error; // Re-throw
+            throw error;
           });
         }
         
-        // If we get here, all DB operations were successful.
-        // Finalize server session and redirect.
         await finishAdminLoginAndRedirect(userToFinalize.uid, userToFinalize.email);
 
       } catch (error: any) {
@@ -91,16 +90,17 @@ function AdminLoginContent() {
         if (!(error instanceof FirestorePermissionError)) {
           setClientError(error.message || 'Failed to check or create admin role.');
         }
-        // If it is a FirestorePermissionError, the global listener will handle it.
         setIsFinishingLogin(false);
+        setLoginFinalized(false); // Reset guard on error
       }
     };
     
     // This effect runs when the auth state changes on the client
-    if (!isUserLoading && authUser && !authUser.isAnonymous) {
+    if (!isUserLoading && authUser && !authUser.isAnonymous && !loginFinalized) {
+      setLoginFinalized(true); // Set guard to true immediately
       finishLogin(authUser);
     }
-  }, [authUser, isUserLoading, firestore]);
+  }, [authUser, isUserLoading, firestore, loginFinalized]);
 
   const displayError = formState?.error || clientError;
 
