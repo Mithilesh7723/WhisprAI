@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -30,7 +31,7 @@ export function useAnonymousId(): string | null {
         setAnonymousId(`anon_${generateUUID()}`);
       }
     }
-  }, []);
+  }, [anonymousId]);
 
   return anonymousId;
 }

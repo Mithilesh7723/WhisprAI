@@ -1,7 +1,8 @@
+
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
-import { useAnonymousId } from '@/lib/hooks/use-anonymous-id';
+import { useAnonymousSignIn } from '@/lib/hooks/use-anonymous-sign-in';
 import { sendChatMessage } from '@/lib/actions';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -16,7 +17,7 @@ import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import { collection, query, where, limit } from 'firebase/firestore';
 
 export default function Chat() {
-  const anonymousId = useAnonymousId();
+  const { anonymousId, isLoading: isAuthLoading } = useAnonymousSignIn();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -92,12 +93,14 @@ export default function Chat() {
     setIsLoading(false);
   };
 
+  const isPageLoading = isAuthLoading || isHistoryLoading;
+
   return (
     <div className="flex h-full flex-grow flex-col bg-background">
       <ScrollArea className="flex-grow p-4" ref={scrollAreaRef}>
         <div className="mx-auto max-w-2xl space-y-6">
-            {(isHistoryLoading && messages.length === 0) && <div className="text-center text-muted-foreground p-8">Loading chat...</div>}
-            {(!isHistoryLoading && messages.length === 0) && (
+            {(isPageLoading && messages.length === 0) && <div className="text-center text-muted-foreground p-8">Loading chat...</div>}
+            {(!isPageLoading && messages.length === 0) && (
                 <div className="text-center text-muted-foreground p-8 rounded-lg bg-card border">
                     <h2 className="font-headline text-lg text-foreground">Namaste.</h2>
                     <p className="mt-2">How are you feeling today?</p>
@@ -170,11 +173,11 @@ export default function Chat() {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             placeholder="Share your feelings..."
-            disabled={isLoading || isHistoryLoading}
+            disabled={isLoading || isPageLoading}
             autoComplete="off"
             className="rounded-full"
           />
-          <Button type="submit" size="icon" disabled={isLoading || isHistoryLoading || !input.trim()} className="rounded-full">
+          <Button type="submit" size="icon" disabled={isLoading || isPageLoading || !input.trim()} className="rounded-full">
             <Send className="h-4 w-4" />
             <span className="sr-only">Send</span>
           </Button>

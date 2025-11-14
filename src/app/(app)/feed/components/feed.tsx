@@ -1,9 +1,10 @@
+
 'use client';
 
 import React, { useEffect, useRef, useActionState } from 'react';
 import { Post } from '@/lib/types';
 import { postWhisper } from '@/lib/actions';
-import { useAnonymousId } from '@/lib/hooks/use-anonymous-id';
+import { useAnonymousSignIn } from '@/lib/hooks/use-anonymous-sign-in';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -54,18 +55,19 @@ function FeedItem({ post }: { post: Post }) {
 }
 
 export default function Feed() {
-  const anonymousId = useAnonymousId();
+  const { anonymousId, isLoading: isAuthLoading } = useAnonymousSignIn();
   const { toast } = useToast();
   const formRef = useRef<HTMLFormElement>(null);
   
   const firestore = useFirestore();
 
   const postsQuery = useMemoFirebase(() => {
-    if (!firestore) return null;
+    // Wait until authentication is complete before creating the query.
+    if (!firestore || isAuthLoading) return null;
     return query(collection(firestore, 'posts'), where('hidden', '!=', true), orderBy('hidden'), orderBy('createdAt', 'desc'));
-  }, [firestore]);
+  }, [firestore, isAuthLoading]);
 
-  const { data: posts, isLoading } = useCollection<Post>(postsQuery);
+  const { data: posts, isLoading: isPostsLoading } = useCollection<Post>(postsQuery);
 
   const [formState, formAction] = useActionState(postWhisper, { error: undefined, success: undefined });
 
@@ -85,6 +87,8 @@ export default function Feed() {
         });
     }
   }, [formState, toast]);
+  
+  const isLoading = isAuthLoading || isPostsLoading;
 
   return (
     <>
@@ -97,6 +101,7 @@ export default function Feed() {
               className="min-h-24 resize-none border-0 px-0 shadow-none focus-visible:ring-0"
               required
               minLength={5}
+              disabled={!anonymousId}
             />
             <input type="hidden" name="userId" value={anonymousId || ''} />
             <div className="flex justify-end">
