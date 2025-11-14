@@ -31,8 +31,8 @@ service cloud.firestore {
      * @path /posts/{postId}
      */
     match /posts/{postId} {
-      allow read, write: if isAdmin();
-      allow get, list: if isSignedIn();
+      allow write: if isAdmin();
+      allow read: if isAdmin() || isSignedIn();
       allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
       allow update, delete: if isSignedIn() && isExistingOwner(resource.data.userId);
     }
@@ -49,7 +49,7 @@ service cloud.firestore {
     }
 
     /**
-     * @description Only authenticated admins can read/write admin roles. A user can create their own admin doc to "request" promotion.
+* @description Only authenticated admins can read/write admin roles. A user can create their own admin doc to "request" promotion.
      * @path /roles_admin/{adminId}
      */
     match /roles_admin/{adminId} {
