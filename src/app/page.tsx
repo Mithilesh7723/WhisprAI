@@ -34,7 +34,7 @@ export default function Home() {
             </Button>
           </div>
           {heroImage && (
-            <div className="relative h-80 w-full max-w-lg lg:h-96 lg:w-[30rem]">
+            <div className="relative h-96 w-full max-w-xl lg:h-[30rem] lg:w-[34rem]">
               <Image
                 src={heroImage.imageUrl}
                 alt={heroImage.description}
