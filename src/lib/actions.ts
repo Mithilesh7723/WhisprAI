@@ -25,7 +25,9 @@ import {
 import {
   getAuth,
   signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
   signOut,
+  UserCredential,
 } from 'firebase/auth';
 import { initializeServerSideFirebase } from '@/firebase/server-init';
 
@@ -75,16 +77,37 @@ export async function adminLogin(
   const password = formData.get('password') as string;
   const db = await getDb();
 
+  let userCredential: UserCredential;
+
   try {
-    // Step 1: Attempt to sign in the user
-    const userCredential = await signInWithEmailAndPassword(auth, email, password);
+    // Step 1: Try to sign in the user
+    userCredential = await signInWithEmailAndPassword(auth, email, password);
+  } catch (error: any) {
+    // Step 2: If sign-in fails because the user doesn't exist, create them
+    if (error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential') {
+      try {
+        userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      } catch (createError: any) {
+        console.error("Admin creation failed:", createError.code, createError.message);
+        return { error: 'Failed to create admin user.' };
+      }
+    } else {
+        // For other sign-in errors (like wrong password), return an error
+        console.error("Admin login failed:", error.code, error.message);
+        if (error.code === 'auth/wrong-password') {
+            return { error: 'Invalid email or password.' };
+        }
+        return { error: 'An unexpected error occurred during login.' };
+    }
+  }
+
+  try {
     const adminId = userCredential.user.uid;
 
-    // Step 2: Check for the admin role document in Firestore
+    // Step 3: Check for the admin role document in Firestore and create if it doesn't exist
     const adminRoleRef = doc(db, 'roles_admin', adminId);
     const adminRoleDoc = await getDoc(adminRoleRef);
 
-    // Step 3: If the role document doesn't exist, create it.
     if (!adminRoleDoc.exists()) {
       await setDoc(adminRoleRef, { 
         email: email,
@@ -106,13 +129,9 @@ export async function adminLogin(
       maxAge: 60 * 60 * 24, // 1 day
       path: '/',
     });
-
-  } catch (error: any) {
-    console.error("Admin login failed:", error.code, error.message);
-    if (error.code === 'auth/invalid-credential' || error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password') {
-        return { error: 'Invalid email or password.' };
-    }
-    return { error: 'An unexpected error occurred during login.' };
+  } catch (dbError: any) {
+    console.error("Firestore operation or cookie setting failed:", dbError);
+    return { error: 'An unexpected error occurred after login.' };
   }
 
   // Redirect on success
