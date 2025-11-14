@@ -1,7 +1,8 @@
 'use client';
 
 import React from 'react';
-import { useFormStatus, useActionState } from 'react';
+import { useFormStatus } from 'react-dom';
+import { useActionState } from 'react';
 import { adminLogin } from '@/lib/actions';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
