@@ -1,16 +1,15 @@
 
 'use client';
 
-import { redirect } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { Dashboard } from './components/dashboard';
 import { AppLogo } from '@/components/app-logo';
 import { Button } from '@/components/ui/button';
 import { LogOut } from 'lucide-react';
-import { FirebaseClientProvider, useUser } from '@/firebase';
+import { FirebaseClientProvider, useUser, useAuth } from '@/firebase';
 import { adminLogout, getAdminSession } from '@/lib/actions';
 import { useEffect, useState } from 'react';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useAuth } from '@/firebase';
 import { signInWithEmailAndPassword } from 'firebase/auth';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { AlertTriangle } from 'lucide-react';
@@ -37,85 +36,89 @@ function AdminHeader() {
 }
 
 function PageContent() {
+  const router = useRouter();
   const auth = useAuth();
   const { user, isUserLoading } = useUser();
-  const [isAdminSession, setIsAdminSession] = useState<boolean | null>(null);
+  const [isCheckingSession, setIsCheckingSession] = useState(true);
+  const [isAdmin, setIsAdmin] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     async function checkAndSignInAdmin() {
-      // 1. Check for the server-side session cookie first.
-      const session = await getAdminSession();
-      if (!session || !session.isAdmin) {
-        redirect('/admin/login');
-        return;
-      }
-      setIsAdminSession(true);
-
-      // 2. If there's no Firebase user or it's not the admin, sign in client-side.
-      // This is safe because we've already verified the secure HTTP-only cookie.
-      if (auth && (!auth.currentUser || auth.currentUser.email !== 'admin@whispr.com')) {
-        try {
-          // Use hardcoded credentials for client-side sign-in.
-          await signInWithEmailAndPassword(auth, 'admin@whispr.com', 'password123');
-          // onAuthStateChanged in the provider will handle setting the user state
-        } catch (e: any) {
-            console.error("Admin client-side sign-in failed:", e);
-            setError("Your admin session is invalid. Please sign out and sign back in.");
+      setIsCheckingSession(true);
+      try {
+        const session = await getAdminSession();
+        if (!session?.isAdmin) {
+          router.replace('/admin/login');
+          return;
         }
+
+        // Now that we have a server session, sign in to Firebase client-side
+        if (auth && (!auth.currentUser || auth.currentUser.email !== 'admin@whispr.com')) {
+          await signInWithEmailAndPassword(auth, 'admin@whispr.com', 'password123');
+        }
+        setIsAdmin(true);
+      } catch (e: any) {
+        console.error("Admin auth check failed:", e);
+        setError("Your session is invalid. Please sign out and sign back in.");
+        setIsAdmin(false);
+      } finally {
+        setIsCheckingSession(false);
       }
     }
-    
-    // Only run this logic once the auth service is available.
+
     if (auth) {
       checkAndSignInAdmin();
     }
-  }, [auth]);
+  }, [auth, router]);
 
+  const isLoading = isCheckingSession || isUserLoading;
 
-  // Show loading state while checking for cookie or waiting for Firebase auth
-  if (isAdminSession === null || (isAdminSession && isUserLoading)) {
-     return (
+  if (isLoading) {
+    return (
       <>
         <AdminHeader />
         <main className="container mx-auto p-4">
-           <div className="space-y-4">
-              <div className="flex justify-between">
-                <Skeleton className="h-10 w-48" />
-              </div>
-              <Skeleton className="h-10 w-96 mb-4" />
-              <Skeleton className="h-96 w-full" />
-           </div>
+          <div className="space-y-4">
+            <div className="flex justify-between">
+              <Skeleton className="h-10 w-48" />
+            </div>
+            <Skeleton className="h-10 w-96 mb-4" />
+            <Skeleton className="h-96 w-full" />
+          </div>
+        </main>
+      </>
+    );
+  }
+  
+  if (error) {
+    return (
+      <>
+        <AdminHeader />
+        <main className="container mx-auto p-4">
+          <Alert variant="destructive">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertTitle>Authentication Error</AlertTitle>
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
         </main>
       </>
     );
   }
 
-  if (error) {
+  if (isAdmin && user) {
     return (
-        <>
+      <>
         <AdminHeader />
         <main className="container mx-auto p-4">
-             <Alert variant="destructive">
-                <AlertTriangle className="h-4 w-4" />
-                <AlertTitle>Authentication Error</AlertTitle>
-                <AlertDescription>{error}</AlertDescription>
-            </Alert>
+          <Dashboard />
         </main>
       </>
-    )
+    );
   }
 
-  // The user object is now available and we've confirmed a cookie session exists.
-  // The Dashboard component can now safely create queries.
-  return (
-    <>
-      <AdminHeader />
-      <main className="container mx-auto p-4">
-        <Dashboard />
-      </main>
-    </>
-  );
+  // Fallback case, should be handled by the redirect in useEffect
+  return null;
 }
 
 
