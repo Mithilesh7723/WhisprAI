@@ -1,1 +1,6 @@
-// Flows will be imported for their side effects in this file.
+import { config } from 'dotenv';
+config();
+
+import '@/ai/flows/classify-whisper-messages.ts';
+import '@/ai/flows/generate-admin-reply.ts';
+import '@/ai/flows/provide-ai-support-chat.ts';
