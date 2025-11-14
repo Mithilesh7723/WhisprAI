@@ -8,10 +8,10 @@
  * The rules are designed to be auditable and maintainable through the use of helper functions.
  *
  * Data Structure:
- * - /posts/{postId}: Publicly readable collection of user-generated content. Write access is restricted to the original poster.
- * - /aiChats/{aiChatId}: Publicly readable collection of AI chat sessions. Write access is open to facilitate chat functionality.
+ * - /posts/{postId}: Publicly readable collection of user-generated content. Write access is restricted to the original poster. Admins have full read/write.
+ * - /aiChats/{aiChatId}: Publicly readable collection of AI chat sessions. Write access is open to facilitate chat functionality. Admins have full read/write.
  * - /roles_admin/{adminId}: Collection of admin user IDs. Only admins can create/update/delete admin roles.
- * - /adminActions/{adminActionId}: Logs of actions performed by admins. Only admins can create/update/delete these logs.
+ * - /adminActions/{adminActionId}: Logs of actions performed by admins. Only admins can create these logs.
  *
  * Key Security Decisions:
  * - User listing is generally disallowed unless explicitly required and secured.
@@ -27,15 +27,8 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Anyone signed in can read/list posts. Only the post owner can create, update, or delete them. Admins can read all posts.
+     * @description Admins have full read/write. Authenticated users can list/get and create posts. Only the post owner can update/delete their own post.
      * @path /posts/{postId}
-     * @allow get, list: if isSignedIn() || isAdmin();
-     * @allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
-     * @allow update: if isAdmin() || (isSignedIn() && isExistingOwner(resource.data.userId));
-     * @allow delete: if isAdmin() || (isSignedIn() && isExistingOwner(resource.data.userId));
-     * @deny create: if !isSignedIn() || request.resource.data.userId != request.auth.uid;
-     * @deny update, delete: if !isAdmin() && (!isSignedIn() || !isExistingOwner(resource.data.userId));
-     * @principle Public read access, owner-only writes, verified identity.
      */
     match /posts/{postId} {
       allow read, write: if isAdmin();
@@ -45,14 +38,8 @@ service cloud.firestore {
     }
 
     /**
-     * @description Anyone can read/list chats. Only the chat owner can create, update, or delete them.
+     * @description Admins have full read/write. Anyone can read/list chats. Only the chat owner can create, update, or delete their own chat.
      * @path /aiChats/{aiChatId}
-     * @allow get, list: if true;
-     * @allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
-     * @allow update, delete: if isSignedIn() && isExistingOwner(resource.data.userId);
-     * @deny create: if !isSignedIn() || request.resource.data.userId != request.auth.uid;
-     * @deny update, delete: if !isSignedIn() || !isExistingOwner(resource.data.userId);
-     * @principle Public read/list access, owner-only update/delete, verified identity.
      */
     match /aiChats/{aiChatId} {
       allow read, write: if isAdmin();
@@ -62,34 +49,17 @@ service cloud.firestore {
     }
 
     /**
-     * @description Only authenticated admins can create, update, or delete admin roles. A user can create their own admin doc.
+     * @description Only authenticated admins can read/write admin roles. A user can create their own admin doc to "request" promotion.
      * @path /roles_admin/{adminId}
-     * @allow get: if isAdmin() || request.auth.uid == adminId;
-     * @allow list: if isAdmin();
-     * @allow create: if request.auth.uid == adminId;
-     * @allow update: if isAdmin() && resource != null;
-     * @allow delete: if isAdmin() && resource != null;
-     * @deny get: if !isAdmin() && request.auth.uid != adminId;
-     * @deny list: if !isAdmin();
-     * @deny create: if request.auth.uid != adminId;
-     * @deny update: if !isAdmin() || resource == null;
-     * @deny delete: if !isAdmin() || resource == null;
-     * @principle Role-based access control, verified identity.
      */
     match /roles_admin/{adminId} {
       allow read, write: if isAdmin();
-      allow get: if isAdmin() || request.auth.uid == adminId;
-      allow list: if isAdmin();
       allow create: if request.auth.uid == adminId;
-      allow update: if isAdmin() && resource != null;
-      allow delete: if isAdmin() && resource != null;
     }
 
     /**
-     * @description Only authenticated admins can create, update, or delete admin actions.
+     * @description Only authenticated admins can create, read, update, or delete admin actions.
      * @path /adminActions/{adminActionId}
-     * @allow get, list, create, update, delete: if isAdmin();
-     * @principle Role-based access control, verified identity.
      */
     match /adminActions/{adminActionId} {
       allow read, write: if isAdmin();
@@ -104,7 +74,7 @@ service cloud.firestore {
     }
 
     function isExistingOwner(userId) {
-      return isOwner(userId) && resource != null;
+      return isOwner(userId) && resource != null && resource.data.userId == userId;
     }
 
     function isAdmin() {

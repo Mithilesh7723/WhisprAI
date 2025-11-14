@@ -1,29 +1,38 @@
-
 'use client';
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Post, AdminAction } from '@/lib/types';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { DataTable } from './data-table';
 import { columns } from './columns';
 import { ActionLog } from './action-log';
+import { useCollection, useFirestore, useUser, useMemoFirebase } from '@/firebase';
+import { collection, query, orderBy } from 'firebase/firestore';
 
-interface DashboardProps {
-  initialPosts: Post[];
-  initialActions: AdminAction[];
-}
+export function Dashboard() {
+  const { user } = useUser();
+  const firestore = useFirestore();
 
-export function Dashboard({ initialPosts, initialActions }: DashboardProps) {
-  // This component is now a "dumb" component that receives data via props.
-  // All data fetching (useUser, useCollection, etc.) has been removed to prevent client-side permission errors.
+  // Query for posts, but only if the user is authenticated.
+  const postsQuery = useMemoFirebase(() => {
+    if (!firestore || !user) return null; // CRUCIAL: Wait for user
+    return query(collection(firestore, 'posts'), orderBy('createdAt', 'desc'));
+  }, [firestore, user]);
 
-  const [posts] = React.useState(initialPosts);
-  const [actions] = React.useState(initialActions);
+  // Query for actions, but only if the user is authenticated.
+  const actionsQuery = useMemoFirebase(() => {
+    if (!firestore || !user) return null; // CRUCIAL: Wait for user
+    return query(collection(firestore, 'adminActions'), orderBy('timestamp', 'desc'));
+  }, [firestore, user]);
 
-  // While initial data is loaded on the server, we can still show a loading state
-  // if we were to introduce client-side updates/re-fetching in the future.
-  // For now, isLoading is false as data is pre-loaded.
-  const isLoading = false;
+  const { data: posts, isLoading: postsLoading } = useCollection<Post>(postsQuery);
+  const { data: actions, isLoading: actionsLoading } = useCollection<AdminAction>(actionsQuery);
+  
+  const sortedActions = useMemo(() => {
+    if (!actions) return [];
+    // Ensure client-side sorting as well, just in case
+    return actions.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+  }, [actions]);
 
   return (
     <Tabs defaultValue="whispers">
@@ -32,10 +41,10 @@ export function Dashboard({ initialPosts, initialActions }: DashboardProps) {
         <TabsTrigger value="actions">Action Log</TabsTrigger>
       </TabsList>
       <TabsContent value="whispers">
-        <DataTable columns={columns} data={posts ?? []} isLoading={isLoading} />
+        <DataTable columns={columns} data={posts ?? []} isLoading={postsLoading} />
       </TabsContent>
       <TabsContent value="actions">
-        <ActionLog actions={actions ?? []} isLoading={isLoading} />
+        <ActionLog actions={sortedActions ?? []} isLoading={actionsLoading} />
       </TabsContent>
     </Tabs>
   );
