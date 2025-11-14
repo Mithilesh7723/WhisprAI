@@ -31,7 +31,8 @@ service cloud.firestore {
      * @path /posts/{postId}
      */
     match /posts/{postId} {
-      allow read: if (resource.data.hidden == false || isAdmin());
+      allow get: if resource.data.hidden == false || isAdmin();
+      allow list: if true;
       allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid && request.resource.data.hidden == false;
       allow update, delete: if (isSignedIn() && isExistingOwner(resource.data.userId)) || isAdmin();
       allow write: if isAdmin();

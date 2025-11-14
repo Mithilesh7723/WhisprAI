@@ -80,7 +80,7 @@ export default function Feed() {
       collection(firestore, 'posts'),
       where('hidden', '==', false),
       orderBy('createdAt', 'desc'),
-      limit(20) // Add a limit to satisfy security rules
+      limit(50) 
     );
   }, [firestore]);
 
