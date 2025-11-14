@@ -28,8 +28,6 @@ import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   signOut,
-  UserCredential,
-  User,
 } from 'firebase/auth';
 import { initializeServerSideFirebase } from '@/firebase/server-init';
 
@@ -73,46 +71,60 @@ const ADMIN_SESSION_COOKIE = 'whispr-admin-session';
 export async function adminLogin(
   prevState: any,
   formData: FormData
-): Promise<{ error?: string; user?: User; }> {
+): Promise<{ error?: string }> {
   const auth = await getFirebaseAuth();
+  const db = await getDb();
   const email = formData.get('email') as string;
   const password = formData.get('password') as string;
 
   try {
-    const userCredential = await signInWithEmailAndPassword(auth, email, password);
-    // This action now only handles auth. It returns the user object.
-    // The client will handle database checks and the final redirect.
-    return { user: userCredential.user };
-  } catch (error: any) {
-    if (error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential') {
-      try {
-        // Attempt to create the user if they don't exist
-        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-        return { user: userCredential.user };
-      } catch (creationError: any) {
-        return { error: `Failed to create admin user: ${creationError.message}` };
+    let userCredential;
+    try {
+      userCredential = await signInWithEmailAndPassword(auth, email, password);
+    } catch (error: any) {
+      if (error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential') {
+        userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      } else {
+        throw error;
       }
     }
-    console.error('Admin login error:', error);
+
+    const user = userCredential.user;
+    const adminRoleRef = doc(db, 'roles_admin', user.uid);
+    const adminRoleDoc = await getDoc(adminRoleRef);
+
+    if (!adminRoleDoc.exists()) {
+      await setDoc(adminRoleRef, {
+        email: user.email,
+        role: 'superadmin',
+        createdAt: new Date().toISOString(),
+      });
+    }
+
+    // Set cookie
+    const session = {
+      adminId: user.uid,
+      email: user.email,
+      loggedInAt: Date.now(),
+    };
+    cookies().set(ADMIN_SESSION_COOKIE, JSON.stringify(session), {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      maxAge: 60 * 60 * 24, // 1 day
+      path: '/',
+    });
+
+  } catch (error: any) {
+    console.error('Admin login process failed:', error);
     return { error: error.message || 'An unexpected authentication error occurred.' };
   }
+
+  // Redirect on success
+  redirect('/admin/dashboard');
 }
 
-export async function finishAdminLoginAndRedirect(adminId: string, email: string) {
-  const session = {
-    adminId,
-    email,
-    loggedInAt: Date.now(),
-  };
 
-  cookies().set(ADMIN_SESSION_COOKIE, JSON.stringify(session), {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    maxAge: 60 * 60 * 24, // 1 day
-    path: '/',
-  });
-
-  // Revalidate and redirect
+export async function finishAdminLoginAndRedirect() {
   revalidatePath('/admin/dashboard', 'layout');
   redirect('/admin/dashboard');
 }
