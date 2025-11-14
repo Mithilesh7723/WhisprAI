@@ -59,14 +59,14 @@ service cloud.firestore {
     }
 
     /**
-     * @description Only authenticated admins can create, update, or delete admin roles.
+     * @description Only authenticated admins can create, update, or delete admin roles. A user can create their own admin doc.
      * @path /roles_admin/{adminId}
-     * @allow get: if isAdmin();
+     * @allow get: if isAdmin() || request.auth.uid == adminId;
      * @allow list: if isAdmin();
      * @allow create: if request.auth.uid == adminId;
      * @allow update: if isAdmin() && resource != null;
      * @allow delete: if isAdmin() && resource != null;
-     * @deny get: if !isAdmin();
+     * @deny get: if !isAdmin() && request.auth.uid != adminId;
      * @deny list: if !isAdmin();
      * @deny create: if request.auth.uid != adminId;
      * @deny update: if !isAdmin() || resource == null;
@@ -74,7 +74,8 @@ service cloud.firestore {
      * @principle Role-based access control, verified identity.
      */
     match /roles_admin/{adminId} {
-      allow get, list: if isAdmin();
+      allow get: if isAdmin() || request.auth.uid == adminId;
+      allow list: if isAdmin();
       allow create: if request.auth.uid == adminId;
       allow update: if isAdmin() && resource != null;
       allow delete: if isAdmin() && resource != null;
