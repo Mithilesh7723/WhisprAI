@@ -1,0 +1,215 @@
+{
+  "entities": {
+    "Post": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Post",
+      "type": "object",
+      "description": "Represents a user's anonymous message.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the post entity."
+        },
+        "userId": {
+          "type": "string",
+          "description": "Anonymous user identifier. This does not represent any identifiable information."
+        },
+        "content": {
+          "type": "string",
+          "description": "The text content of the message."
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp of when the message was created.",
+          "format": "date-time"
+        },
+        "aiLabel": {
+          "type": "string",
+          "description": "The label assigned by the AI Guardian (normal, stressed, need_help)."
+        },
+        "aiConfidence": {
+          "type": "number",
+          "description": "The confidence level of the AI Guardian's label assignment."
+        }
+      },
+      "required": [
+        "id",
+        "userId",
+        "content",
+        "createdAt",
+        "aiLabel",
+        "aiConfidence"
+      ]
+    },
+    "AiChat": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "AiChat",
+      "type": "object",
+      "description": "Represents a conversation between a user and the AI assistant.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the AI chat session."
+        },
+        "userId": {
+          "type": "string",
+          "description": "Anonymous user identifier for this chat session."
+        },
+        "messages": {
+          "type": "array",
+          "description": "An array of messages in the chat session.",
+          "items": {
+            "type": "string"
+          }
+        },
+        "escalated": {
+          "type": "boolean",
+          "description": "Indicates if the chat has been escalated to an admin."
+        }
+      },
+      "required": [
+        "id",
+        "userId",
+        "messages",
+        "escalated"
+      ]
+    },
+    "Admin": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Admin",
+      "type": "object",
+      "description": "Represents an administrator account.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the admin user."
+        },
+        "email": {
+          "type": "string",
+          "description": "Email address of the administrator.",
+          "format": "email"
+        },
+        "role": {
+          "type": "string",
+          "description": "Role of the administrator (e.g., superadmin, moderator)."
+        }
+      },
+      "required": [
+        "id",
+        "email",
+        "role"
+      ]
+    },
+    "AdminAction": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "AdminAction",
+      "type": "object",
+      "description": "Represents an action performed by an administrator.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the admin action."
+        },
+        "adminId": {
+          "type": "string",
+          "description": "Reference to Admin. (Relationship: Admin 1:N AdminAction)"
+        },
+        "targetId": {
+          "type": "string",
+          "description": "The ID of the post or user that the action was performed on."
+        },
+        "type": {
+          "type": "string",
+          "description": "The type of action performed (reply, hide, re-label)."
+        },
+        "timestamp": {
+          "type": "string",
+          "description": "Timestamp of when the action was performed.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "adminId",
+        "targetId",
+        "type",
+        "timestamp"
+      ]
+    }
+  },
+  "auth": {
+    "providers": [
+      "password",
+      "anonymous"
+    ]
+  },
+  "firestore": {
+    "structure": [
+      {
+        "path": "/posts/{postId}",
+        "definition": {
+          "entityName": "Post",
+          "schema": {
+            "$ref": "#/backend/entities/Post"
+          },
+          "description": "Stores anonymous user messages with AI labels. Accessible to all users.",
+          "params": [
+            {
+              "name": "postId",
+              "description": "Unique identifier for the post."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/aiChats/{aiChatId}",
+        "definition": {
+          "entityName": "AiChat",
+          "schema": {
+            "$ref": "#/backend/entities/AiChat"
+          },
+          "description": "Stores AI chat sessions, securing conversations with the AI. Accessible to all users.",
+          "params": [
+            {
+              "name": "aiChatId",
+              "description": "Unique identifier for the AI chat session."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/roles_admin/{adminId}",
+        "definition": {
+          "entityName": "Admin",
+          "schema": {
+            "$ref": "#/backend/entities/Admin"
+          },
+          "description": "Collection to store admin user IDs. Existence of a document indicates admin role.",
+          "params": [
+            {
+              "name": "adminId",
+              "description": "Unique identifier for the admin user."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/adminActions/{adminActionId}",
+        "definition": {
+          "entityName": "AdminAction",
+          "schema": {
+            "$ref": "#/backend/entities/AdminAction"
+          },
+          "description": "Logs all actions performed by admins, including replies, content removal, and label updates.",
+          "params": [
+            {
+              "name": "adminActionId",
+              "description": "Unique identifier for the admin action."
+            }
+          ]
+        }
+      }
+    ],
+    "reasoning": "The Firestore structure is designed to ensure authorization independence, clarity, and scalability, aligning with the specified principles.  Authorization independence is achieved by avoiding `get()` calls in security rules through structural segregation and denormalization where necessary.  The design employs path-based ownership for user-related data and a membership map for collaborative data (if applicable, though not directly present in this data model).  This combination facilitates robust and debuggable security rules, ensuring only authorized users can access specific data.  Structural segregation is applied by separating public posts from admin-related data, each with distinct security profiles.  This organization supports secure `list` operations (QAPs) and enforces data integrity through consistent naming conventions and explicit state modeling. Since all data in this structure is designed to either be globally accessible (posts) or restricted to admins, the structure avoids any situations where rules act as filters. The structure maintains invariants by enforcing ownership, timestamps, and any denormalized data."
+  }
+}

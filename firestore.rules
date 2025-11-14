@@ -1,0 +1,127 @@
+/**
+ * @fileOverview Firestore Security Rules for the application.
+ *
+ * Core Philosophy:
+ * This ruleset prioritizes a secure-by-default posture, emphasizing explicit authorization checks for all write operations.
+ * It enforces a separation of concerns, using different collections for public and private data.
+ * The rules are designed to be auditable and maintainable through the use of helper functions.
+ *
+ * Data Structure:
+ * - /posts/{postId}: Publicly readable collection of user-generated content. Write access is restricted to the original poster.
+ * - /aiChats/{aiChatId}: Publicly readable collection of AI chat sessions. Write access is open to facilitate chat functionality.
+ * - /roles_admin/{adminId}: Collection of admin user IDs. Only admins can create/update/delete admin roles.
+ * - /adminActions/{adminActionId}: Logs of actions performed by admins. Only admins can create/update/delete these logs.
+ *
+ * Key Security Decisions:
+ * - User listing is generally disallowed unless explicitly required and secured.
+ * - Data validation is limited to authorization-critical fields to enable rapid prototyping.
+ * - The `aiChats` collection is open for writes to allow seamless chat functionality during prototyping. Consider adding rate limiting or other abuse prevention mechanisms in a production environment.
+ * - Admin role management is isolated to the `roles_admin` collection, allowing for clear separation of concerns.
+ *
+ * Denormalization for Authorization:
+ * - The `Post` entity includes a `userId` field to easily enforce ownership.
+ */
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    /**
+     * @description Anyone can read/list posts, only the post owner can create, update or delete them.
+     * @path /posts/{postId}
+     * @allow get, list: if true;
+     * @allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+     * @allow update: if isSignedIn() && isOwner(resource.data.userId) && resource != null;
+     * @allow delete: if isSignedIn() && isExistingOwner(resource.data.userId);
+     * @deny create: if request.auth == null;
+     * @deny update: if !isSignedIn() || !isExistingOwner(resource.data.userId);
+     * @deny delete: if !isSignedIn() || !isExistingOwner(resource.data.userId);
+     * @principle Public read access, owner-only writes, verified identity.
+     */
+    match /posts/{postId} {
+      allow get, list: if true;
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow update: if isSignedIn() && isExistingOwner(resource.data.userId);
+      allow delete: if isSignedIn() && isExistingOwner(resource.data.userId);
+    }
+
+    /**
+     * @description Anyone can read/list and create new chats, but only the owner can update and delete their own chats.
+     * @path /aiChats/{aiChatId}
+     * @allow get, list: if true;
+     * @allow create: if isSignedIn();
+     * @allow update: if isSignedIn() && isExistingOwner(resource.data.userId);
+     * @allow delete: if isSignedIn() && isExistingOwner(resource.data.userId);
+     * @deny update: if !isSignedIn() || !isExistingOwner(resource.data.userId);
+     * @deny delete: if !isSignedIn() || !isExistingOwner(resource.data.userId);
+     * @principle Public read/list access, owner-only update/delete, verified identity.
+     */
+    match /aiChats/{aiChatId} {
+      allow get, list: if true;
+      allow create: if isSignedIn();
+      allow update: if isSignedIn() && isExistingOwner(resource.data.userId);
+      allow delete: if isSignedIn() && isExistingOwner(resource.data.userId);
+    }
+
+    /**
+     * @description Only authenticated admins can create, update, or delete admin roles.
+     * @path /roles_admin/{adminId}
+     * @allow get: if isAdmin();
+     * @allow list: if isAdmin();
+     * @allow create: if isAdmin();
+     * @allow update: if isAdmin() && resource != null;
+     * @allow delete: if isAdmin() && resource != null;
+     * @deny get: if !isAdmin();
+     * @deny list: if !isAdmin();
+     * @deny create: if !isAdmin();
+     * @deny update: if !isAdmin() || resource == null;
+     * @deny delete: if !isAdmin() || resource == null;
+     * @principle Role-based access control, verified identity.
+     */
+    match /roles_admin/{adminId} {
+      allow get: if isAdmin();
+      allow list: if isAdmin();
+      allow create: if isAdmin();
+      allow update: if isAdmin() && resource != null;
+      allow delete: if isAdmin() && resource != null;
+    }
+
+    /**
+     * @description Only authenticated admins can create, update, or delete admin actions.
+     * @path /adminActions/{adminActionId}
+     * @allow get: if isAdmin();
+     * @allow list: if isAdmin();
+     * @allow create: if isAdmin();
+     * @allow update: if isAdmin() && resource != null;
+     * @allow delete: if isAdmin() && resource != null;
+     * @deny get: if !isAdmin();
+     * @deny list: if !isAdmin();
+     * @deny create: if !isAdmin();
+     * @deny update: if !isAdmin() || resource == null;
+     * @deny delete: if !isAdmin() || resource == null;
+     * @principle Role-based access control, verified identity.
+     */
+    match /adminActions/{adminActionId} {
+      allow get: if isAdmin();
+      allow list: if isAdmin();
+      allow create: if isAdmin();
+      allow update: if isAdmin() && resource != null;
+      allow delete: if isAdmin() && resource != null;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+        return request.auth.uid == userId;
+    }
+
+    function isExistingOwner(userId) {
+      return isOwner(userId) && resource != null;
+    }
+
+    function isAdmin() {
+        return get(/databases/$(database)/documents/roles_admin/$(request.auth.uid)).data.role == 'superadmin';
+    }
+  }
+}
