@@ -5,7 +5,6 @@ import { revalidatePath } from 'next/cache';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { provideAISupportChat } from '@/ai/flows/provide-ai-support-chat';
-import { generateAdminReply } from '@/ai/flows/generate-admin-reply';
 import type { Post, AdminAction } from './types';
 import {
   getFirestore,
@@ -179,27 +178,4 @@ export async function getAdminActions(): Promise<AdminAction[]> {
     actions.push({ id: doc.id, ...data, timestamp } as AdminAction);
   });
   return actions;
-}
-
-export async function generateAdminReplyAction(postId: string) {
-  try {
-    const db = await getDbForAdmin();
-    const postRef = doc(db, 'posts', postId);
-    const postSnap = await getDoc(postRef);
-
-    if (!postSnap.exists()) {
-      return { error: 'Post not found' };
-    }
-
-    const postContent = postSnap.data().content;
-    const { reply } = await generateAdminReply({ message: postContent });
-    
-    await updateDoc(postRef, { reply: reply });
-
-    revalidatePath('/admin/dashboard');
-    return { success: true, reply };
-  } catch (error: any) {
-    console.error('Failed to generate admin reply', error);
-    return { error: error.message || 'Failed to generate AI reply.' };
-  }
 }

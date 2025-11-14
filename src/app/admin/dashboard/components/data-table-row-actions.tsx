@@ -17,9 +17,9 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
 import { MoreHorizontal, Bot, Eye, EyeOff, Tag } from 'lucide-react';
-import { generateAdminReplyAction } from '@/lib/actions';
+import { generateAdminReply } from '@/ai/flows/generate-admin-reply';
 import { useToast } from '@/hooks/use-toast';
-import { useState, useTransition } from 'react';
+import { useTransition } from 'react';
 import { useFirestore } from '@/firebase';
 import { doc, updateDoc, addDoc, collection } from 'firebase/firestore';
 import { errorEmitter } from '@/firebase/error-emitter';
@@ -43,7 +43,7 @@ export function DataTableRowActions<TData>({
     startTransition(async () => {
       if (!firestore) return;
       try {
-        const postRef = doc(firestore, 'posts', post.id); // Use id from post object
+        const postRef = doc(firestore, 'posts', post.id);
         const actionsRef = collection(firestore, 'adminActions');
 
         await updateDoc(postRef, { aiLabel: label }).catch((error) => {
@@ -59,6 +59,7 @@ export function DataTableRowActions<TData>({
         });
 
         // We can't get adminId on the client securely, so we'll log it as 'admin_client_action'
+        // Security rules should enforce that only admins can write to this collection.
         await addDoc(actionsRef, {
           adminId: 'admin_client_action',
           targetId: post.id,
@@ -83,11 +84,14 @@ export function DataTableRowActions<TData>({
         });
         router.refresh();
       } catch (e: any) {
-        toast({
-          variant: 'destructive',
-          title: 'Action Failed',
-          description: e.message || 'Failed to update post label.',
-        });
+        // The permission error will be thrown globally, but we catch other errors here
+        if (!(e instanceof FirestorePermissionError)) {
+            toast({
+                variant: 'destructive',
+                title: 'Action Failed',
+                description: e.message || 'Failed to update post label.',
+            });
+        }
       }
     });
   };
@@ -139,11 +143,13 @@ export function DataTableRowActions<TData>({
         });
         router.refresh();
       } catch (e: any) {
-        toast({
-          variant: 'destructive',
-          title: 'Action Failed',
-          description: e.message || 'Failed to update post visibility.',
-        });
+         if (!(e instanceof FirestorePermissionError)) {
+            toast({
+                variant: 'destructive',
+                title: 'Action Failed',
+                description: e.message || 'Failed to update post visibility.',
+            });
+        }
       }
     });
   };
@@ -152,9 +158,10 @@ export function DataTableRowActions<TData>({
     startTransition(async () => {
       if (!firestore) return;
       try {
-        const result = await generateAdminReplyAction(post.id);
-        if (result?.error || !result.reply) {
-          throw new Error(result.error || 'Reply was empty.');
+        // Directly call the AI flow from the client
+        const result = await generateAdminReply({ message: post.content });
+        if (!result.reply) {
+          throw new Error('Reply was empty.');
         }
 
         const postRef = doc(firestore, 'posts', post.id);
@@ -196,11 +203,13 @@ export function DataTableRowActions<TData>({
         });
         router.refresh();
       } catch (e: any) {
-        toast({
-          variant: 'destructive',
-          title: 'Action Failed',
-          description: e.message || 'Failed to generate AI reply.',
-        });
+        if (!(e instanceof FirestorePermissionError)) {
+            toast({
+            variant: 'destructive',
+            title: 'Action Failed',
+            description: e.message || 'Failed to generate AI reply.',
+            });
+        }
       }
     });
   };
