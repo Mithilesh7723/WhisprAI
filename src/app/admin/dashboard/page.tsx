@@ -11,7 +11,7 @@ export const metadata = {
   title: 'Admin Dashboard - Whispr',
 };
 
-// This ensures the page is always dynamically rendered
+// This ensures the page is always dynamically rendered to get fresh data
 export const dynamic = 'force-dynamic';
 
 export default async function AdminDashboardPage() {
@@ -20,13 +20,14 @@ export default async function AdminDashboardPage() {
     redirect('/admin/login');
   }
 
-  // These actions are now protected by verifyAdminAndGetId internally.
-  // The server-side getDocs call needs relaxed rules to function without a user context.
+  // Fetch data on the server. The components will be client components
+  // but they will receive this initial data as props.
   const posts = await getAllPostsForAdmin();
   const actions = await getAdminActions();
 
   return (
-    <FirebaseClientProvider>
+    // The Firebase provider is needed because the row actions are client components that use Firestore
+    <FirebaseClientProvider> 
         <div className="min-h-screen bg-secondary">
         <header className="sticky top-0 z-10 border-b bg-background/80 backdrop-blur-sm">
             <div className="container mx-auto flex h-16 items-center justify-between px-4">

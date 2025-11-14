@@ -18,12 +18,16 @@ import {
 import { Button } from '@/components/ui/button';
 import { MoreHorizontal, Bot, Eye, EyeOff, Tag } from 'lucide-react';
 import {
-  generateAndSetAdminReply,
-  togglePostVisibility,
-  updatePostLabel,
+  generateAdminReplyAction,
+  verifyAdminForUpdate,
 } from '@/lib/actions';
 import { useToast } from '@/hooks/use-toast';
 import { useState, useTransition } from 'react';
+import { useFirestore } from '@/firebase';
+import { doc, updateDoc, addDoc, collection } from 'firebase/firestore';
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError } from '@/firebase/errors';
+import { revalidatePath } from 'next/cache';
 
 interface DataTableRowActionsProps<TData> {
   row: Row<TData>;
@@ -35,39 +39,109 @@ export function DataTableRowActions<TData>({
   const post = row.original as Post;
   const { toast } = useToast();
   const [isPending, startTransition] = useTransition();
+  const firestore = useFirestore();
 
-  const handleUpdateLabel = async (label: AILabel) => {
+  const handleUpdateLabel = (label: AILabel) => {
     startTransition(async () => {
       try {
-        const result = await updatePostLabel(post.postId, label);
-        if (result.success) {
-          toast({
-            title: 'Success',
-            description: `Post label updated to "${label}".`,
-          });
+        const { success, adminId } = await verifyAdminForUpdate();
+        if (!success || !adminId) {
+          throw new Error('Admin verification failed.');
         }
+
+        const postRef = doc(firestore, 'posts', post.postId);
+        const actionsRef = collection(firestore, 'adminActions');
+
+        // Perform Firestore writes and wrap in error handler
+        updateDoc(postRef, { aiLabel: label }).catch((error) => {
+          errorEmitter.emit(
+            'permission-error',
+            new FirestorePermissionError({
+              path: postRef.path,
+              operation: 'update',
+              requestResourceData: { aiLabel: label },
+            })
+          );
+          throw error; // Re-throw to be caught by outer try-catch
+        });
+
+        addDoc(actionsRef, {
+          adminId,
+          targetId: post.postId,
+          type: 're-label',
+          timestamp: new Date().toISOString(),
+          details: { from: post.aiLabel, to: label },
+        }).catch((error) => {
+           errorEmitter.emit(
+            'permission-error',
+            new FirestorePermissionError({
+              path: actionsRef.path,
+              operation: 'create',
+              requestResourceData: { type: 're-label' },
+            })
+          );
+          throw error;
+        });
+        
+        toast({
+          title: 'Success',
+          description: `Post label updated to "${label}". (UI will refresh)`,
+        });
+        // revalidatePath('/admin/dashboard'); // This is a server action, can't be called here. Client will see changes on next load.
+
       } catch (e: any) {
         toast({
           variant: 'destructive',
           title: 'Action Failed',
-          description: e.message || 'Failed to update post label.',
+          description:
+            e.message || 'Failed to update post label.',
         });
       }
     });
   };
 
-  const handleToggleVisibility = async () => {
+  const handleToggleVisibility = () => {
     startTransition(async () => {
       try {
-        const result = await togglePostVisibility(post.postId);
-        if (result.success) {
-          toast({
-            title: 'Success',
-            description: `Post has been ${
-              post.hidden ? 'made visible' : 'hidden'
-            }.`,
-          });
+        const { success, adminId } = await verifyAdminForUpdate();
+        if (!success || !adminId) {
+          throw new Error('Admin verification failed.');
         }
+        
+        const isHidden = post.hidden || false;
+        const newVisibility = !isHidden;
+        const postRef = doc(firestore, 'posts', post.postId);
+        const actionsRef = collection(firestore, 'adminActions');
+
+        updateDoc(postRef, { hidden: newVisibility }).catch(error => {
+            errorEmitter.emit('permission-error', new FirestorePermissionError({
+                path: postRef.path,
+                operation: 'update',
+                requestResourceData: { hidden: newVisibility }
+            }));
+            throw error;
+        });
+
+        addDoc(actionsRef, {
+            adminId,
+            targetId: post.postId,
+            type: newVisibility ? 'hide' : 'unhide',
+            timestamp: new Date().toISOString(),
+            details: { wasHidden: isHidden },
+        }).catch(error => {
+            errorEmitter.emit('permission-error', new FirestorePermissionError({
+                path: actionsRef.path,
+                operation: 'create',
+                requestResourceData: { type: newVisibility ? 'hide' : 'unhide' }
+            }));
+            throw error;
+        });
+
+        toast({
+          title: 'Success',
+          description: `Post has been ${ newVisibility ? 'hidden' : 'made visible' }. (UI will refresh)`,
+        });
+
       } catch (e: any) {
         toast({
           variant: 'destructive',
@@ -78,17 +152,50 @@ export function DataTableRowActions<TData>({
     });
   };
 
-  const handleGenerateReply = async () => {
+  const handleGenerateReply = () => {
     startTransition(async () => {
       try {
-        const result = await generateAndSetAdminReply(post.postId);
+        // Step 1: Call server action to securely get the AI reply
+        const result = await generateAdminReplyAction(post.postId);
         if (result?.error || !result.reply) {
           throw new Error(result.error || 'Reply was empty.');
         }
 
+        // The server action already verified the admin, so we get the adminId from it
+        const { adminId } = await verifyAdminForUpdate();
+        if (!adminId) throw new Error("Could not verify admin.");
+
+        // Step 2: Update the post on the client with the reply
+        const postRef = doc(firestore, 'posts', post.postId);
+        const actionsRef = collection(firestore, 'adminActions');
+
+        updateDoc(postRef, { reply: result.reply }).catch(error => {
+             errorEmitter.emit('permission-error', new FirestorePermissionError({
+                path: postRef.path,
+                operation: 'update',
+                requestResourceData: { reply: result.reply }
+            }));
+            throw error;
+        });
+
+        addDoc(actionsRef, {
+            adminId,
+            targetId: post.postId,
+            type: 'reply',
+            timestamp: new Date().toISOString(),
+            details: { generatedReply: result.reply },
+        }).catch(error => {
+            errorEmitter.emit('permission-error', new FirestorePermissionError({
+                path: actionsRef.path,
+                operation: 'create',
+                requestResourceData: { type: 'reply' }
+            }));
+            throw error;
+        });
+
         toast({
           title: 'Success',
-          description: 'AI reply has been generated and attached.',
+          description: 'AI reply has been generated and attached. (UI will refresh)',
         });
       } catch (e: any) {
         toast({
@@ -120,19 +227,19 @@ export function DataTableRowActions<TData>({
             <DropdownMenuSubContent>
               <DropdownMenuItem
                 onClick={() => handleUpdateLabel('normal')}
-                disabled={isPending}
+                disabled={isPending || post.aiLabel === 'normal'}
               >
                 Normal
               </DropdownMenuItem>
               <DropdownMenuItem
                 onClick={() => handleUpdateLabel('stressed')}
-                disabled={isPending}
+                disabled={isPending || post.aiLabel === 'stressed'}
               >
                 Stressed
               </DropdownMenuItem>
               <DropdownMenuItem
                 onClick={() => handleUpdateLabel('need_help')}
-                disabled={isPending}
+                disabled={isPending || post.aiLabel === 'need_help'}
               >
                 Need Help
               </DropdownMenuItem>
