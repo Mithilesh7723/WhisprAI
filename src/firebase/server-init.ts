@@ -2,7 +2,7 @@
 // It should not be imported into any client-side code.
 
 import { firebaseConfig } from '@/firebase/config';
-import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
+import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore'
 
@@ -11,6 +11,7 @@ import { getFirestore } from 'firebase/firestore'
  * Ensures that initialization happens only once.
  */
 export function initializeServerSideFirebase() {
+  // Check if any app is initialized. If not, initialize one.
   if (!getApps().length) {
     const firebaseApp = initializeApp(firebaseConfig);
     return {
@@ -19,6 +20,7 @@ export function initializeServerSideFirebase() {
       firestore: getFirestore(firebaseApp)
     };
   } else {
+    // If an app is already initialized, get it and return the services.
     const firebaseApp = getApp();
     return {
       firebaseApp,

@@ -46,17 +46,11 @@ export async function adminLogin(formData: FormData) {
   
   if (email !== adminEmail || password !== adminPassword) {
       const errorMessage = 'Invalid email or password.';
-      redirect(`/admin/login?error=${encodeURIComponent(errorMessage)}`);
+      return redirect(`/admin/login?error=${encodeURIComponent(errorMessage)}`);
   }
   
   try {
     const { auth } = initializeServerSideFirebase();
-    // This doesn't actually sign the user in on the client,
-    // but it verifies the credentials against Firebase Auth.
-    // The client will need to sign in separately or we pass a token.
-    // For this demo, we'll assume the hardcoded password is the source of truth
-    // and the existence of the cookie is enough. The dashboard itself
-    // uses Firebase Auth on the client to verify rules.
     const userCredential = await signInWithEmailAndPassword(auth, email, password);
 
     if (userCredential.user) {
@@ -73,17 +67,28 @@ export async function adminLogin(formData: FormData) {
           path: '/',
         });
         
-        redirect('/admin/dashboard');
+        return redirect('/admin/dashboard');
     } else {
         throw new Error('User authentication failed.');
     }
   } catch (error: any) {
     console.error("Admin login failed:", error);
     let errorMessage = 'An unknown error occurred during login.';
-    if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
-        errorMessage = 'Invalid email or password.';
+    if (error.code) {
+        switch (error.code) {
+            case 'auth/user-not-found':
+            case 'auth/wrong-password':
+            case 'auth/invalid-credential':
+                errorMessage = 'Invalid email or password.';
+                break;
+            case 'auth/network-request-failed':
+                errorMessage = 'Could not connect to authentication service. Please check your network connection.';
+                break;
+            default:
+                errorMessage = `An unexpected error occurred: ${error.code}`;
+        }
     }
-    redirect(`/admin/login?error=${encodeURIComponent(errorMessage)}`);
+    return redirect(`/admin/login?error=${encodeURIComponent(errorMessage)}`);
   }
 }
 
