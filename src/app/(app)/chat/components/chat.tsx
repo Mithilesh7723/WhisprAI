@@ -92,12 +92,11 @@ export default function Chat() {
       );
 
       // The action returns a specific error message on failure.
-      // If we receive that, it means the `provideAISupportChat` flow failed in a predictable way.
-      // We can then let the catch block handle the UI update.
+      // If we receive that response, we throw to trigger the catch block.
       if (res.response.startsWith("I'm having a little trouble")) {
         throw new Error("AI service connection failed.");
       }
-
+      
       const aiMessage: ChatMessage = {
           sender: 'ai',
           text: res.response,
@@ -262,3 +261,5 @@ export default function Chat() {
     </div>
   );
 }
+
+    
