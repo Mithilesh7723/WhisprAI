@@ -35,12 +35,14 @@ function AdminLoginContent() {
 
   useEffect(() => {
     async function finishLogin() {
+      // We proceed only if the server action was successful and returned a user.
       if (state?.success && state.user && firestore) {
         setIsFinishingLogin(true);
         const { uid, email } = state.user;
         const adminRoleRef = doc(firestore, 'roles_admin', uid);
 
         try {
+          // Check if the admin role document exists for the logged-in user.
           const adminRoleDoc = await getDoc(adminRoleRef).catch(error => {
              errorEmitter.emit(
               'permission-error',
@@ -52,13 +54,14 @@ function AdminLoginContent() {
              throw error; // Re-throw to be caught by the outer try-catch
           });
 
+          // If the document doesn't exist, create it.
           if (!adminRoleDoc.exists()) {
             const newRole = { 
                 email: email,
                 role: 'superadmin',
                 createdAt: new Date().toISOString()
             };
-            // Use .catch for non-blocking error handling
+            // Use .catch for non-blocking error handling for the write operation.
             setDoc(adminRoleRef, newRole).catch(error => {
                 errorEmitter.emit(
                 'permission-error',
@@ -68,24 +71,22 @@ function AdminLoginContent() {
                     requestResourceData: newRole
                 })
                 );
-                // We don't need to re-throw here as the emitter handles it.
-                // But we should stop the redirect and show a toast.
+                // Show an error to the user but don't re-throw, as the emitter handles the dev overlay.
                 toast({
                     variant: "destructive",
                     title: "Role Creation Failed",
                     description: "Could not create the admin role. Check console for details.",
                 });
-                setIsFinishingLogin(false);
+                setIsFinishingLogin(false); // Stop the loading spinner
+                return; // Stop execution
             });
-            // Assuming optimistic update, we proceed to redirect.
-            // If the setDoc fails, the user will see an error but might be redirected.
-            // A more robust solution might wait for a success callback.
           }
           
+          // If we've successfully checked/created the role, proceed to the dashboard.
           await finishAdminLoginAndRedirect();
 
         } catch (error) {
-          // This will catch the re-thrown error from getDoc or other synchronous errors.
+          // This will catch errors from getDoc or other issues.
           console.error("Failed to finish admin login:", error);
            toast({
             variant: "destructive",
