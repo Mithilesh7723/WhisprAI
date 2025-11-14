@@ -6,7 +6,7 @@ import { redirect } from 'next/navigation';
 import { classifyWhisper } from '@/ai/flows/classify-whisper-messages';
 import { provideAISupportChat } from '@/ai/flows/provide-ai-support-chat';
 import { generateAdminReply } from '@/ai/flows/generate-admin-reply';
-import type { Post, AdminAction, AILabel, ChatMessage } from './types';
+import type { Post, AdminAction, AILabel, ChatMessage, AIChat } from './types';
 import {
   getFirestore,
   addDoc,
@@ -19,13 +19,14 @@ import {
   doc,
   getDoc,
   updateDoc,
-  writeBatch,
+  limit,
   setDoc,
 } from 'firebase/firestore';
 import {
   getAuth,
   signInWithEmailAndPassword,
   signOut,
+  createUserWithEmailAndPassword,
 } from 'firebase/auth';
 import { initializeServerSideFirebase } from '@/firebase/server-init';
 
@@ -110,18 +111,15 @@ export async function sendChatMessage(
 ) {
   try {
     const db = await getDb();
-    // Check for an existing chat session
     const chatQuery = query(collection(db, 'aiChats'), where('userId', '==', userId), limit(1));
     const querySnapshot = await getDocs(chatQuery);
     let sessionId: string | undefined;
     let chatDocRef;
 
     if (querySnapshot.empty) {
-        // Create new chat
         chatDocRef = doc(collection(db, 'aiChats'));
         sessionId = chatDocRef.id;
     } else {
-        // Use existing chat
         chatDocRef = querySnapshot.docs[0].ref;
         sessionId = chatDocRef.id;
     }
@@ -144,7 +142,6 @@ export async function sendChatMessage(
       timestamp: new Date().toISOString(),
     };
 
-    // The full history is now passed from the client, so we just use it directly
     const updatedMessages = [...history, aiMessage];
     
     await setDoc(chatDocRef, {
@@ -178,16 +175,12 @@ export async function adminLogin(
   const auth = await getFirebaseAuth();
   const email = formData.get('email') as string;
   const password = formData.get('password') as string;
+  const db = await getDb();
 
   try {
     const userCredential = await signInWithEmailAndPassword(auth, email, password);
-    const idToken = await userCredential.user.getIdToken();
     
-    // In a real app, you'd verify if the user has an admin role in your database.
-    // For this demo, any successful login is considered an admin.
-    const db = await getDb();
     const adminRoleDoc = await getDoc(doc(db, 'roles_admin', userCredential.user.uid));
-
     if (!adminRoleDoc.exists()) {
         throw new Error("User does not have admin privileges.");
     }
@@ -204,14 +197,39 @@ export async function adminLogin(
       maxAge: 60 * 60 * 24, // 1 day
       path: '/',
     });
+
   } catch (error: any) {
+    // If user not found and it's the demo admin, create them
+    if (error.code === 'auth/user-not-found' && email === 'admin@whispr.com') {
+      try {
+        const newUserCredential = await createUserWithEmailAndPassword(auth, email, password);
+        const adminId = newUserCredential.user.uid;
+        
+        // Set admin role in Firestore
+        await setDoc(doc(db, 'roles_admin', adminId), { 
+          email: email,
+          role: 'superadmin',
+          createdAt: serverTimestamp() 
+        });
+
+        // Log the user in by re-calling this function, which will now succeed
+        return adminLogin(prevState, formData);
+
+      } catch (creationError: any) {
+        console.error("Admin user creation failed:", creationError);
+        return { error: 'Failed to create admin user.' };
+      }
+    }
+
     let errorMessage = 'Invalid email or password.';
     if (error.message.includes('admin')) {
         errorMessage = error.message;
     }
-    console.error("Admin login failed:", error);
+    console.error("Admin login failed:", error.code, error.message);
     return { error: errorMessage };
   }
+
+  // Redirect happens outside the try/catch
   redirect('/admin/dashboard');
 }
 
@@ -219,7 +237,6 @@ export async function getAdminSession() {
   const sessionCookie = cookies().get(ADMIN_SESSION_COOKIE);
   if (!sessionCookie) return null;
   try {
-    // Here you might want to verify the token with Firebase Admin SDK in a real backend
     return JSON.parse(sessionCookie.value);
   } catch {
     return null;
@@ -257,6 +274,9 @@ async function verifyAdminAndLogAction(
 }
 
 export async function getAllPostsForAdmin(): Promise<Post[]> {
+  const session = await getAdminSession();
+  if (!session) return [];
+  
   const db = await getDb();
   const postsRef = collection(db, 'posts');
   const q = query(postsRef, orderBy('createdAt', 'desc'));
@@ -265,10 +285,10 @@ export async function getAllPostsForAdmin(): Promise<Post[]> {
   const posts: Post[] = [];
   querySnapshot.forEach((doc) => {
     const data = doc.data();
-    // Convert Firestore Timestamp to ISO string
     const createdAt = data.createdAt?.toDate ? data.createdAt.toDate().toISOString() : new Date().toISOString();
     posts.push({ 
         postId: doc.id, 
+        id: doc.id,
         ...data,
         createdAt,
     } as Post);
@@ -277,6 +297,9 @@ export async function getAllPostsForAdmin(): Promise<Post[]> {
 }
 
 export async function getAdminActions(): Promise<AdminAction[]> {
+    const session = await getAdminSession();
+    if (!session) return [];
+
   const db = await getDb();
   const actionsRef = collection(db, 'adminActions');
   const q = query(actionsRef, orderBy('timestamp', 'desc'), limit(50));
@@ -284,55 +307,64 @@ export async function getAdminActions(): Promise<AdminAction[]> {
   const querySnapshot = await getDocs(q);
   const actions: AdminAction[] = [];
   querySnapshot.forEach((doc) => {
-    actions.push({ actionId: doc.id, ...doc.data() } as AdminAction);
+    actions.push({ actionId: doc.id, id: doc.id, ...doc.data() } as AdminAction);
   });
   return actions;
 }
 
 export async function updatePostLabel(postId: string, newLabel: AILabel) {
-  const db = await getDb();
-  const postRef = doc(db, 'posts', postId);
-  const postSnap = await getDoc(postRef);
+  try {
+    const db = await getDb();
+    const postRef = doc(db, 'posts', postId);
+    const postSnap = await getDoc(postRef);
 
-  if (!postSnap.exists()) return { error: 'Post not found' };
+    if (!postSnap.exists()) return { error: 'Post not found' };
 
-  await verifyAdminAndLogAction(postId, 're-label', {
-    from: postSnap.data().aiLabel,
-    to: newLabel,
-  });
+    await verifyAdminAndLogAction(postId, 're-label', {
+      from: postSnap.data().aiLabel,
+      to: newLabel,
+    });
 
-  await updateDoc(postRef, { aiLabel: newLabel });
-  revalidatePath('/admin/dashboard');
-  revalidatePath('/feed');
-  return { success: true };
+    await updateDoc(postRef, { aiLabel: newLabel });
+    revalidatePath('/admin/dashboard');
+    revalidatePath('/feed');
+    return { success: true };
+  } catch (e: any) {
+    return { error: e.message };
+  }
 }
 
 export async function togglePostVisibility(postId: string) {
-  const db = await getDb();
-  const postRef = doc(db, 'posts', postId);
-  const postSnap = await getDoc(postRef);
+    try {
+        const db = await getDb();
+        const postRef = doc(db, 'posts', postId);
+        const postSnap = await getDoc(postRef);
 
-  if (!postSnap.exists()) return { error: 'Post not found' };
+        if (!postSnap.exists()) return { error: 'Post not found' };
 
-  const isHidden = postSnap.data().hidden || false;
-  await verifyAdminAndLogAction(postId, isHidden ? 'unhide' : 'hide', {
-    wasHidden: isHidden,
-  });
+        const isHidden = postSnap.data().hidden || false;
+        await verifyAdminAndLogAction(postId, isHidden ? 'unhide' : 'hide', {
+            wasHidden: isHidden,
+        });
 
-  await updateDoc(postRef, { hidden: !isHidden });
-  revalidatePath('/admin/dashboard');
-  revalidatePath('/feed');
-  return { success: true };
+        await updateDoc(postRef, { hidden: !isHidden });
+        revalidatePath('/admin/dashboard');
+        revalidatePath('/feed');
+        return { success: true };
+    } catch (e: any) {
+        return { error: e.message };
+    }
 }
 
 export async function generateAndSetAdminReply(postId: string) {
-  const db = await getDb();
-  const postRef = doc(db, 'posts', postId);
-  const postSnap = await getDoc(postRef);
-  if (!postSnap.exists()) return { error: 'Post not found' };
-
-  const postContent = postSnap.data().content;
   try {
+    const db = await getDb();
+    const postRef = doc(db, 'posts', postId);
+    const postSnap = await getDoc(postRef);
+    if (!postSnap.exists()) return { error: 'Post not found' };
+
+    const postContent = postSnap.data().content;
+    
     const { reply } = await generateAdminReply({ message: postContent });
     
     await updateDoc(postRef, { reply: reply });
@@ -341,8 +373,7 @@ export async function generateAndSetAdminReply(postId: string) {
 
     revalidatePath('/admin/dashboard');
     return { success: true, reply };
-  } catch (error)
-  {
+  } catch (error) {
     console.error('Failed to generate admin reply', error);
     return { error: 'Failed to generate AI reply.' };
   }
