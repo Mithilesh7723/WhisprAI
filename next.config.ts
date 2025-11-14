@@ -28,6 +28,12 @@ const nextConfig: NextConfig = {
         port: '',
         pathname: '/**',
       },
+      {
+        protocol: 'https',
+        hostname: 'explicit-amethyst-719oaao61c.edgeone.app',
+        port: '',
+        pathname: '/**',
+      },
     ],
   },
 };

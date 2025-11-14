@@ -1,3 +1,4 @@
+
 import Image from 'next/image';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -32,11 +33,10 @@ export default function Home() {
           </div>
           <div className="relative h-96 w-full max-w-xl lg:h-[30rem] lg:w-[34rem]">
             <Image
-              src="https://storage.googleapis.com/project-deft-public-resources/hero-animation.gif"
-              alt="An animation showing a comforting interaction."
+              src="https://explicit-amethyst-719oaao61c.edgeone.app/Gemini_Generated_Image_ylb7yrylb7yrylb7.png"
+              alt="An abstract illustration representing a whisper or a thought."
               fill
               priority
-              unoptimized
               className="rounded-3xl object-cover shadow-2xl shadow-primary/10"
             />
           </div>
