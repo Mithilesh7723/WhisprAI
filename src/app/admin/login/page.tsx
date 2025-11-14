@@ -31,24 +31,23 @@ function AdminLoginContent() {
 
   useEffect(() => {
     const finishLogin = async (user: User) => {
-      if (!firestore) return;
+      if (!firestore || loginFinalized) return;
       setIsFinishingLogin(true);
       setClientError(null);
+      setLoginFinalized(true); 
 
       try {
         const adminRoleRef = doc(firestore, 'roles_admin', user.uid);
         
-        // Use a getDoc to check for the role. This might fail, and we need to catch it.
         const adminRoleDoc = await getDoc(adminRoleRef).catch(error => {
             errorEmitter.emit('permission-error', new FirestorePermissionError({
                 path: adminRoleRef.path,
                 operation: 'get'
             }));
-            throw error;
+            throw new FirestorePermissionError({ path: adminRoleRef.path, operation: 'get' });
         });
 
         if (!adminRoleDoc.exists()) {
-          // If the role doesn't exist, try to create it. This might also fail.
           await setDoc(adminRoleRef, {
             email: user.email,
             role: 'superadmin',
@@ -59,24 +58,21 @@ function AdminLoginContent() {
                 operation: 'create',
                 requestResourceData: { role: 'superadmin' }
             }));
-            throw error;
+            throw new FirestorePermissionError({ path: adminRoleRef.path, operation: 'create' });
           });
         }
         
-        // If all DB operations succeed, finalize the login and redirect.
         await finishAdminLoginAndRedirect();
 
       } catch (error: any) {
         console.error("Error during login finalization:", error);
-        setClientError(error.message || "An error occurred while finalizing login.");
-        setIsFinishingLogin(false); // Stop loading on error
-        setLoginFinalized(false); // Allow retry
+        setClientError(error.message || "An error occurred while verifying admin role.");
+        setIsFinishingLogin(false);
+        setLoginFinalized(false);
       }
     };
 
-    // This logic runs after a user is authenticated on the client
-    if (authUser && !authUser.isAnonymous && !isUserLoading && !loginFinalized) {
-      setLoginFinalized(true); // Prevent this from running again for the same auth user
+    if (authUser && !authUser.isAnonymous && !isUserLoading) {
       finishLogin(authUser);
     }
   }, [authUser, isUserLoading, firestore, loginFinalized]);
@@ -118,11 +114,12 @@ function AdminLoginContent() {
                 placeholder="admin@example.com"
                 required
                 defaultValue="admin@whispr.com"
+                disabled={isFinishingLogin}
               />
             </div>
             <div className="space-y-2">
               <Label htmlFor="password">Password</Label>
-              <Input id="password" name="password" type="password" required defaultValue="password123"/>
+              <Input id="password" name="password" type="password" required defaultValue="password123" disabled={isFinishingLogin} />
             </div>
           </CardContent>
           <CardFooter>
