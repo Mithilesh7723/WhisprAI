@@ -1,8 +1,7 @@
 
 'use client';
 
-import React, { useEffect } from 'react';
-import { useFormStatus } from 'react-dom';
+import React, { useEffect, useState } from 'react';
 import { adminLogin, finishAdminLoginAndRedirect } from '@/lib/actions';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
@@ -17,8 +16,7 @@ import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { useToast } from '@/hooks/use-toast';
 
-function LoginButton() {
-  const { pending } = useFormStatus();
+function LoginButton({ pending }: { pending: boolean }) {
   return (
     <Button type="submit" className="w-full" disabled={pending}>
       {pending ? 'Signing In...' : 'Sign In'}
@@ -27,22 +25,28 @@ function LoginButton() {
 }
 
 function AdminLoginContent() {
-  const [error, setError] = React.useState<string | undefined>(undefined);
-  const [isFinishingLogin, setIsFinishingLogin] = React.useState(false);
+  const [error, setError] = useState<string | undefined>(undefined);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isFinishingLogin, setIsFinishingLogin] = useState(false);
   const firestore = useFirestore();
   const { user, isUserLoading } = useUser();
   const { toast } = useToast();
 
-  const handleFormAction = async (formData: FormData) => {
+  const handleFormAction = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setIsSubmitting(true);
+    setError(undefined);
+    const formData = new FormData(event.currentTarget);
     const result = await adminLogin(formData);
     if (result?.error) {
         setError(result.error);
     }
+    // The useEffect below will handle the redirect
+    setIsSubmitting(false);
   }
 
   useEffect(() => {
     async function finishLogin() {
-      // We proceed only after Firebase client auth state has updated and it's a real user (not anonymous)
       if (user && !user.isAnonymous && !isUserLoading && firestore) {
         setIsFinishingLogin(true);
         const { uid, email } = user;
@@ -61,13 +65,12 @@ function AdminLoginContent() {
           });
 
           if (!adminRoleDoc.exists()) {
-            const newRole = { 
+            const newRole = {
                 email: email,
                 role: 'superadmin',
                 createdAt: new Date().toISOString()
             };
-            // Do not await this, use catch for error handling
-            setDoc(adminRoleRef, newRole).catch(error => {
+            await setDoc(adminRoleRef, newRole).catch(error => {
                 errorEmitter.emit(
                 'permission-error',
                 new FirestorePermissionError({
@@ -76,12 +79,11 @@ function AdminLoginContent() {
                     requestResourceData: newRole
                 })
                 );
-                // Re-throw to be caught by the outer try-catch
                 throw error;
             });
           }
-          
-          // If we get here, either the role existed or we've initiated the creation
+
+          // If we get here, the role exists or was created. Redirect.
           await finishAdminLoginAndRedirect();
 
         } catch (error) {
@@ -98,7 +100,7 @@ function AdminLoginContent() {
     finishLogin();
   }, [user, isUserLoading, firestore, toast]);
 
-  if (isFinishingLogin || isUserLoading) {
+  if (isFinishingLogin || (isUserLoading && !user)) {
     return (
         <div className="flex min-h-screen flex-col items-center justify-center bg-secondary p-4 text-center">
             <Loader2 className="h-8 w-8 animate-spin text-primary mb-4" />
@@ -113,7 +115,7 @@ function AdminLoginContent() {
         <AppLogo />
       </div>
       <Card className="w-full max-w-sm">
-        <form action={handleFormAction}>
+        <form onSubmit={handleFormAction}>
           <CardHeader>
             <CardTitle>Admin Access</CardTitle>
             <CardDescription>
@@ -150,7 +152,7 @@ function AdminLoginContent() {
             </div>
           </CardContent>
           <CardFooter>
-            <LoginButton />
+            <LoginButton pending={isSubmitting} />
           </CardFooter>
         </form>
       </Card>
