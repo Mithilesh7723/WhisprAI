@@ -60,6 +60,7 @@ function AdminLoginContent() {
                 role: 'superadmin',
                 createdAt: new Date().toISOString()
             };
+            // Do not await this, use catch for error handling
             setDoc(adminRoleRef, newRole).catch(error => {
                 errorEmitter.emit(
                 'permission-error',
@@ -69,16 +70,12 @@ function AdminLoginContent() {
                     requestResourceData: newRole
                 })
                 );
-                toast({
-                    variant: "destructive",
-                    title: "Role Creation Failed",
-                    description: "Could not create the admin role. Check console for details.",
-                });
-                setIsFinishingLogin(false);
-                return;
+                // Re-throw to be caught by the outer try-catch
+                throw error;
             });
           }
           
+          // If we get here, either the role existed or we've initiated the creation
           await finishAdminLoginAndRedirect();
 
         } catch (error) {
@@ -94,14 +91,6 @@ function AdminLoginContent() {
     }
     finishLogin();
   }, [user, isUserLoading, firestore, toast]);
-  
-  // Set loading state based on server action pending status
-  useEffect(() => {
-    if (state?.pending) {
-        setIsFinishingLogin(true);
-    }
-  }, [state])
-
 
   if (isFinishingLogin || isUserLoading) {
     return (
