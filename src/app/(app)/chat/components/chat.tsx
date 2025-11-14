@@ -6,12 +6,14 @@ import { sendChatMessage } from '@/lib/actions';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { ChatMessage } from '@/lib/types';
+import { ChatMessage, AIChat } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { AlertTriangle, Send, Sparkles } from 'lucide-react';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { HelplinePanel } from '@/components/helpline-panel';
+import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
+import { collection, query, where, limit } from 'firebase/firestore';
 
 export default function Chat() {
   const anonymousId = useAnonymousId();
@@ -20,6 +22,28 @@ export default function Chat() {
   const [isLoading, setIsLoading] = useState(false);
   const [isEscalated, setIsEscalated] = useState(false);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
+
+  const firestore = useFirestore();
+
+  // Query for the user's chat history
+  const chatQuery = useMemoFirebase(() => {
+    if (!firestore || !anonymousId) return null;
+    return query(collection(firestore, 'aiChats'), where('userId', '==', anonymousId), limit(1));
+  }, [firestore, anonymousId]);
+
+  const { data: chatHistory, isLoading: isHistoryLoading } = useCollection<AIChat>(chatQuery);
+
+  // Set initial messages from history
+  useEffect(() => {
+    if (chatHistory && chatHistory.length > 0) {
+      setMessages(chatHistory[0].messages || []);
+      setIsEscalated(chatHistory[0].escalated || false);
+    } else {
+        setMessages([]);
+        setIsEscalated(false);
+    }
+  }, [chatHistory]);
+
 
   const scrollToBottom = () => {
     if (scrollAreaRef.current) {
@@ -43,12 +67,14 @@ export default function Chat() {
       text: input,
       timestamp: new Date().toISOString(),
     };
-    setMessages((prev) => [...prev, userMessage]);
+    const newMessages = [...messages, userMessage];
+    setMessages(newMessages);
     setInput('');
     setIsLoading(true);
 
+    // We pass the full history to the server action now
     const res = await sendChatMessage(
-      [...messages, userMessage],
+      newMessages,
       input,
       anonymousId
     );
@@ -70,7 +96,8 @@ export default function Chat() {
     <div className="flex h-full flex-grow flex-col bg-background">
       <ScrollArea className="flex-grow p-4" ref={scrollAreaRef}>
         <div className="mx-auto max-w-2xl space-y-6">
-            {messages.length === 0 && (
+            {(isHistoryLoading && messages.length === 0) && <div className="text-center text-muted-foreground p-8">Loading chat...</div>}
+            {(!isHistoryLoading && messages.length === 0) && (
                 <div className="text-center text-muted-foreground p-8 rounded-lg bg-card border">
                     <h2 className="font-headline text-lg text-foreground">Namaste.</h2>
                     <p className="mt-2">How are you feeling today?</p>
@@ -143,11 +170,11 @@ export default function Chat() {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             placeholder="Share your feelings..."
-            disabled={isLoading}
+            disabled={isLoading || isHistoryLoading}
             autoComplete="off"
             className="rounded-full"
           />
-          <Button type="submit" size="icon" disabled={isLoading || !input.trim()} className="rounded-full">
+          <Button type="submit" size="icon" disabled={isLoading || isHistoryLoading || !input.trim()} className="rounded-full">
             <Send className="h-4 w-4" />
             <span className="sr-only">Send</span>
           </Button>

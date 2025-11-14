@@ -1,6 +1,7 @@
 export type AILabel = 'normal' | 'stressed' | 'need_help';
 
 export type Post = {
+  id: string; // Changed from postId to id for consistency with useCollection
   postId: string;
   userId: string;
   content: string;
@@ -29,6 +30,7 @@ export type ChatMessage = {
 };
 
 export type AIChat = {
+  id: string; // Changed from sessionId
   sessionId: string;
   userId: string;
   messages: ChatMessage[];

@@ -1,11 +1,12 @@
 'use client';
 
-import { useState } from 'react';
 import { Post, AdminAction } from '@/lib/types';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { DataTable } from './data-table';
 import { columns } from './columns';
 import { ActionLog } from './action-log';
+import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
+import { collection, query, orderBy } from 'firebase/firestore';
 
 type DashboardProps = {
   initialPosts: Post[];
@@ -13,8 +14,20 @@ type DashboardProps = {
 };
 
 export function Dashboard({ initialPosts, initialActions }: DashboardProps) {
-  const [posts] = useState(initialPosts);
-  const [actions] = useState(initialActions);
+  const firestore = useFirestore();
+
+  const postsQuery = useMemoFirebase(() => {
+    if (!firestore) return null;
+    return query(collection(firestore, 'posts'), orderBy('createdAt', 'desc'));
+  }, [firestore]);
+
+  const actionsQuery = useMemoFirebase(() => {
+    if (!firestore) return null;
+    return query(collection(firestore, 'adminActions'), orderBy('timestamp', 'desc'));
+  }, [firestore]);
+
+  const { data: posts, isLoading: postsLoading } = useCollection<Post>(postsQuery);
+  const { data: actions, isLoading: actionsLoading } = useCollection<AdminAction>(actionsQuery);
 
   return (
     <Tabs defaultValue="whispers">
@@ -23,10 +36,10 @@ export function Dashboard({ initialPosts, initialActions }: DashboardProps) {
         <TabsTrigger value="actions">Action Log</TabsTrigger>
       </TabsList>
       <TabsContent value="whispers">
-        <DataTable columns={columns} data={posts} />
+        <DataTable columns={columns} data={posts || initialPosts} isLoading={postsLoading} />
       </TabsContent>
       <TabsContent value="actions">
-        <ActionLog actions={actions} />
+        <ActionLog actions={actions || initialActions} isLoading={actionsLoading} />
       </TabsContent>
     </Tabs>
   );

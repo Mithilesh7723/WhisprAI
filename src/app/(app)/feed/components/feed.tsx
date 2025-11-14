@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useEffect, useState, useActionState } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { Post } from '@/lib/types';
-import { getPosts, postWhisper } from '@/lib/actions';
+import { postWhisper } from '@/lib/actions';
 import { useAnonymousId } from '@/lib/hooks/use-anonymous-id';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
@@ -10,9 +10,11 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { formatDistanceToNow } from 'date-fns';
-import { useFormStatus } from 'react-dom';
+import { useFormStatus, useFormState } from 'react-dom';
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
+import { collection, query, where, orderBy } from 'firebase/firestore';
 
 function PostForm() {
   const { pending } = useFormStatus();
@@ -52,24 +54,21 @@ function FeedItem({ post }: { post: Post }) {
 }
 
 export default function Feed() {
-  const [posts, setPosts] = useState<Post[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
   const anonymousId = useAnonymousId();
   const { toast } = useToast();
-  const formRef = React.useRef<HTMLFormElement>(null);
-
-  const [formState, formAction] = useActionState(postWhisper, { error: undefined, success: undefined });
-
-  useEffect(() => {
-    async function loadPosts() {
-      setIsLoading(true);
-      const fetchedPosts = await getPosts();
-      setPosts(fetchedPosts);
-      setIsLoading(false);
-    }
-    loadPosts();
-  }, []);
+  const formRef = useRef<HTMLFormElement>(null);
   
+  const firestore = useFirestore();
+
+  const postsQuery = useMemoFirebase(() => {
+    if (!firestore) return null;
+    return query(collection(firestore, 'posts'), where('hidden', '!=', true), orderBy('hidden'), orderBy('createdAt', 'desc'));
+  }, [firestore]);
+
+  const { data: posts, isLoading } = useCollection<Post>(postsQuery);
+
+  const [formState, formAction] = useFormState(postWhisper, { error: undefined, success: undefined });
+
   useEffect(() => {
     if (formState.error) {
       toast({
@@ -80,11 +79,10 @@ export default function Feed() {
     }
     if(formState.success){
         formRef.current?.reset();
-        async function loadPosts() {
-            const fetchedPosts = await getPosts();
-            setPosts(fetchedPosts);
-        }
-        loadPosts();
+        toast({
+          title: 'Success',
+          description: "Your whisper has been shared.",
+        });
     }
   }, [formState, toast]);
 
@@ -122,8 +120,8 @@ export default function Feed() {
                     </CardContent>
                 </Card>
             ))
-        ) : posts.length > 0 ? (
-          posts.map((post) => <FeedItem key={post.postId} post={post} />)
+        ) : posts && posts.length > 0 ? (
+          posts.map((post) => <FeedItem key={post.id} post={post} />)
         ) : (
           <div className="text-center text-muted-foreground py-16">
             <p className="text-lg">The world is quiet right now.</p>

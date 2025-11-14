@@ -30,16 +30,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { AILabel } from '@/lib/types';
+import { Skeleton } from '@/components/ui/skeleton';
 
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
   data: TData[];
+  isLoading?: boolean;
 }
 
 export function DataTable<TData, TValue>({
   columns,
   data,
+  isLoading,
 }: DataTableProps<TData, TValue>) {
   const [sorting, setSorting] = React.useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);
@@ -112,7 +114,17 @@ export function DataTable<TData, TValue>({
             ))}
           </TableHeader>
           <TableBody>
-            {table.getRowModel().rows?.length ? (
+            {isLoading ? (
+                Array.from({length: 10}).map((_, i) => (
+                    <TableRow key={i}>
+                        {columns.map((column, j) => (
+                            <TableCell key={j}>
+                                <Skeleton className="h-6 w-full" />
+                            </TableCell>
+                        ))}
+                    </TableRow>
+                ))
+            ) : table.getRowModel().rows?.length ? (
               table.getRowModel().rows.map((row) => (
                 <TableRow
                   key={row.id}

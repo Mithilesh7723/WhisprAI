@@ -1,7 +1,7 @@
 'use client';
 
-import { useActionState } from 'react';
-import { useFormStatus } from 'react-dom';
+import React from 'react';
+import { useFormStatus, useFormState } from 'react-dom';
 import { adminLogin } from '@/lib/actions';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { AppLogo } from '@/components/app-logo';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { AlertTriangle } from 'lucide-react';
+import { FirebaseClientProvider } from '@/firebase';
 
 function LoginButton() {
   const { pending } = useFormStatus();
@@ -20,8 +21,8 @@ function LoginButton() {
   );
 }
 
-export default function AdminLoginPage() {
-  const [state, formAction] = useActionState(adminLogin, { error: undefined });
+function AdminLoginContent() {
+  const [state, formAction] = useFormState(adminLogin, { error: undefined });
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-secondary p-4">
@@ -72,4 +73,13 @@ export default function AdminLoginPage() {
       </Card>
     </div>
   );
+}
+
+
+export default function AdminLoginPage() {
+    return (
+        <FirebaseClientProvider>
+            <AdminLoginContent />
+        </FirebaseClientProvider>
+    )
 }
