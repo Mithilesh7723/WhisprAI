@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useActionState } from 'react';
 import { Post } from '@/lib/types';
 import { getPosts, postWhisper } from '@/lib/actions';
 import { useAnonymousId } from '@/lib/hooks/use-anonymous-id';
@@ -10,7 +10,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { formatDistanceToNow } from 'date-fns';
-import { useFormState, useFormStatus } from 'react-dom';
+import { useFormStatus } from 'react-dom';
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
 
@@ -58,7 +58,7 @@ export default function Feed() {
   const { toast } = useToast();
   const formRef = React.useRef<HTMLFormElement>(null);
 
-  const [formState, formAction] = useFormState(postWhisper, { error: undefined, success: undefined });
+  const [formState, formAction] = useActionState(postWhisper, { error: undefined, success: undefined });
 
   useEffect(() => {
     async function loadPosts() {
