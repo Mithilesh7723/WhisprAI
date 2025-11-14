@@ -1,7 +1,7 @@
 
 'use client';
 
-import React, { useActionState, useEffect } from 'react';
+import React from 'react';
 import { adminLogin } from '@/lib/actions';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
@@ -11,12 +11,7 @@ import { AppLogo } from '@/components/app-logo';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { AlertTriangle, Loader2 } from 'lucide-react';
 import { useFormStatus } from 'react-dom';
-import { useRouter } from 'next/navigation';
-
-const initialState: { error?: string; success?: boolean; } = {
-  error: undefined,
-  success: false,
-};
+import { useSearchParams } from 'next/navigation';
 
 function LoginButton() {
   const { pending } = useFormStatus();
@@ -29,15 +24,8 @@ function LoginButton() {
 }
 
 function AdminLoginContent() {
-  const [state, formAction] = useActionState(adminLogin, initialState);
-  const router = useRouter();
-
-  useEffect(() => {
-    if (state.success) {
-      router.push('/admin/dashboard');
-    }
-  }, [state.success, router]);
-
+  const searchParams = useSearchParams();
+  const error = searchParams.get('error');
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-secondary p-4">
@@ -45,7 +33,7 @@ function AdminLoginContent() {
         <AppLogo />
       </div>
       <Card className="w-full max-w-sm">
-        <form action={formAction}>
+        <form action={adminLogin}>
           <CardHeader>
             <CardTitle>Admin Access</CardTitle>
             <CardDescription>
@@ -53,11 +41,11 @@ function AdminLoginContent() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {state?.error && (
+            {error && (
               <Alert variant="destructive">
                 <AlertTriangle className="h-4 w-4" />
                 <AlertTitle>Login Failed</AlertTitle>
-                <AlertDescription>{state.error}</AlertDescription>
+                <AlertDescription>{error}</AlertDescription>
               </Alert>
             )}
             <div className="space-y-2 rounded-md border bg-muted/50 p-3">
@@ -90,9 +78,11 @@ function AdminLoginContent() {
   );
 }
 
-
 export default function AdminLoginPage() {
+    // Wrap with Suspense for useSearchParams to work in Pages Router or during SSR
     return (
+      <React.Suspense fallback={<div>Loading...</div>}>
         <AdminLoginContent />
+      </React.Suspense>
     )
 }

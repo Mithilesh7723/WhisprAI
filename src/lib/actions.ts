@@ -47,10 +47,7 @@ export async function runAiChat(message: string, userId: string, sessionId: stri
 
 const ADMIN_SESSION_COOKIE = 'whispr-admin-session';
 
-export async function adminLogin(
-  prevState: any,
-  formData: FormData
-): Promise<{ error?: string; success?: boolean; }> {
+export async function adminLogin(formData: FormData) {
   const { auth, firestore } = initializeServerSideFirebase();
   const email = formData.get('email') as string;
   const password = formData.get('password') as string;
@@ -63,7 +60,7 @@ export async function adminLogin(
     const adminRoleDoc = await getDoc(adminRoleRef);
 
     if (!adminRoleDoc.exists()) {
-      return { error: 'Authentication successful, but you do not have admin permissions.' };
+      throw new Error('Authentication successful, but you do not have admin permissions.');
     }
     
     const session = {
@@ -79,16 +76,19 @@ export async function adminLogin(
       path: '/',
     });
     
-    // On success, return a success flag instead of redirecting
-    return { success: true };
-
   } catch (error: any) {
     console.error('Admin login process failed:', error);
-    if (error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential' || error.code === 'auth/wrong-password') {
-         return { error: 'Invalid email or password.' };
+    let errorMessage = 'An unexpected authentication error occurred.';
+     if (error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential' || error.code === 'auth/wrong-password') {
+         errorMessage = 'Invalid email or password.';
+    } else if (error.message) {
+        errorMessage = error.message;
     }
-    return { error: error.message || 'An unexpected authentication error occurred.' };
+    return redirect(`/admin/login?error=${encodeURIComponent(errorMessage)}`);
   }
+
+  // This will only be reached on success
+  redirect('/admin/dashboard');
 }
 
 
