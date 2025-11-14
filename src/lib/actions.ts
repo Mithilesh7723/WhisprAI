@@ -91,10 +91,11 @@ export async function postWhisper(
     const db = await getDb();
     const classification = await classifyWhisper({ content });
     
-    addDocumentNonBlocking(collection(db, 'posts'), {
+    // Use addDoc directly since we are in a server action.
+    await addDoc(collection(db, 'posts'), {
       userId,
       content,
-      createdAt: serverTimestamp(),
+      createdAt: new Date().toISOString(),
       aiLabel: classification.aiLabel,
       aiConfidence: classification.aiConfidence,
       hidden: false,
@@ -143,11 +144,12 @@ export async function sendChatMessage(
 
     const updatedMessages = [...history, aiMessage];
     
-    setDocumentNonBlocking(chatDocRef, {
+    // We can use setDoc here directly as it's a server action
+    await setDoc(chatDocRef, {
         userId: userId,
         messages: updatedMessages,
         escalated: aiResult.escalate,
-        lastUpdatedAt: serverTimestamp()
+        lastUpdatedAt: new Date().toISOString()
     }, { merge: true });
 
     return {
@@ -187,11 +189,10 @@ export async function adminLogin(
 
     // Step 3: If the role document doesn't exist, create it.
     if (!adminRoleDoc.exists()) {
-      // This handles the case where the user exists in Auth but not in the roles collection
       await setDoc(adminRoleRef, { 
         email: email,
         role: 'superadmin',
-        createdAt: serverTimestamp() 
+        createdAt: new Date().toISOString()
       });
     }
 
@@ -210,9 +211,8 @@ export async function adminLogin(
     });
 
   } catch (error: any) {
-    // This will catch sign-in failures (wrong password, etc.)
     console.error("Admin login failed:", error.code, error.message);
-    if (error.code === 'auth/invalid-credential') {
+    if (error.code === 'auth/invalid-credential' || error.code === 'auth/user-not-found') {
         return { error: 'Invalid email or password.' };
     }
     return { error: 'An unexpected error occurred during login.' };
@@ -259,7 +259,7 @@ async function verifyAdminAndLogAction(
     timestamp: new Date().toISOString(),
     details,
   };
-  await addDocumentNonBlocking(collection(db, 'adminActions'), action);
+  await addDoc(collection(db, 'adminActions'), action);
 }
 
 export async function getAllPostsForAdmin(): Promise<Post[]> {
@@ -274,8 +274,8 @@ export async function getAllPostsForAdmin(): Promise<Post[]> {
   const posts: Post[] = [];
   querySnapshot.forEach((doc) => {
     const data = doc.data();
-    // Convert Firestore Timestamp to ISO string
-    const createdAt = (data.createdAt as Timestamp)?.toDate ? (data.createdAt as Timestamp).toDate().toISOString() : new Date().toISOString();
+    // Convert Firestore Timestamp to ISO string if it exists
+    const createdAt = (data.createdAt as any)?.toDate ? (data.createdAt as Timestamp).toDate().toISOString() : data.createdAt;
     posts.push({ 
         postId: doc.id, 
         id: doc.id,
@@ -315,7 +315,7 @@ export async function updatePostLabel(postId: string, newLabel: AILabel) {
       to: newLabel,
     });
 
-    updateDocumentNonBlocking(postRef, { aiLabel: newLabel });
+    await updateDoc(postRef, { aiLabel: newLabel });
     revalidatePath('/admin/dashboard');
     revalidatePath('/feed');
     return { success: true };
@@ -337,7 +337,7 @@ export async function togglePostVisibility(postId: string) {
             wasHidden: isHidden,
         });
 
-        updateDocumentNonBlocking(postRef, { hidden: !isHidden });
+        await updateDoc(postRef, { hidden: !isHidden });
         revalidatePath('/admin/dashboard');
         revalidatePath('/feed');
         return { success: true };
@@ -357,7 +357,7 @@ export async function generateAndSetAdminReply(postId: string) {
     
     const { reply } = await generateAdminReply({ message: postContent });
     
-    updateDocumentNonBlocking(postRef, { reply: reply });
+    await updateDoc(postRef, { reply: reply });
 
     await verifyAdminAndLogAction(postId, 'reply', { generatedReply: reply });
 
@@ -368,5 +368,3 @@ export async function generateAndSetAdminReply(postId: string) {
     return { error: 'Failed to generate AI reply.' };
   }
 }
-
-    

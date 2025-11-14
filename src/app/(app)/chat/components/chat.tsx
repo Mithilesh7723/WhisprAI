@@ -17,7 +17,7 @@ import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import { collection, query, where, limit } from 'firebase/firestore';
 
 export default function Chat() {
-  const { anonymousId, isLoading: isAuthLoading } = useAnonymousSignIn();
+  const { user, isLoading: isAuthLoading } = useAnonymousSignIn();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -28,9 +28,9 @@ export default function Chat() {
 
   // Query for the user's chat history
   const chatQuery = useMemoFirebase(() => {
-    if (!firestore || !anonymousId) return null;
-    return query(collection(firestore, 'aiChats'), where('userId', '==', anonymousId), limit(1));
-  }, [firestore, anonymousId]);
+    if (!firestore || !user?.uid) return null;
+    return query(collection(firestore, 'aiChats'), where('userId', '==', user.uid), limit(1));
+  }, [firestore, user?.uid]);
 
   const { data: chatHistory, isLoading: isHistoryLoading } = useCollection<AIChat>(chatQuery);
 
@@ -61,7 +61,7 @@ export default function Chat() {
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!input.trim() || !anonymousId || isLoading) return;
+    if (!input.trim() || !user?.uid || isLoading) return;
 
     const userMessage: ChatMessage = {
       sender: 'user',
@@ -77,7 +77,7 @@ export default function Chat() {
     const res = await sendChatMessage(
       newMessages,
       input,
-      anonymousId
+      user.uid
     );
     
     const aiMessage: ChatMessage = {

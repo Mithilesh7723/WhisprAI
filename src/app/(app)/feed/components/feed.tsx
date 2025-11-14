@@ -55,25 +55,21 @@ function FeedItem({ post }: { post: Post }) {
 }
 
 export default function Feed() {
-  const { anonymousId, isLoading: isAuthLoading } = useAnonymousSignIn();
+  const { user, isLoading: isAuthLoading } = useAnonymousSignIn();
   const { toast } = useToast();
   const formRef = useRef<HTMLFormElement>(null);
   
   const firestore = useFirestore();
 
   const postsQuery = useMemoFirebase(() => {
-    // Wait until authentication is complete before creating the query.
-    if (!firestore || isAuthLoading) return null;
-    // Removed orderBy('createdAt', 'desc') to avoid complex query issues with security rules.
-    // Sorting will be handled on the client.
+    if (!firestore || !user) return null;
     return query(collection(firestore, 'posts'), where('hidden', '==', false));
-  }, [firestore, isAuthLoading]);
+  }, [firestore, user]);
 
   const { data: rawPosts, isLoading: isPostsLoading } = useCollection<Post>(postsQuery);
 
   const posts = useMemo(() => {
     if (!rawPosts) return [];
-    // Sort posts on the client-side since we removed it from the query
     return rawPosts.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   }, [rawPosts]);
 
@@ -109,9 +105,9 @@ export default function Feed() {
               className="min-h-24 resize-none border-0 px-0 shadow-none focus-visible:ring-0"
               required
               minLength={5}
-              disabled={!anonymousId}
+              disabled={!user}
             />
-            <input type="hidden" name="userId" value={anonymousId || ''} />
+            <input type="hidden" name="userId" value={user?.uid || ''} />
             <div className="flex justify-end">
               <PostForm />
             </div>
