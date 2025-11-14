@@ -88,7 +88,8 @@ export async function adminLogin(
         throw error; // Re-throw other sign-in errors
       }
     }
-
+    
+    // Set the cookie after successful auth, but before client-side DB ops
     const session = { 
         adminId: userCredential.user.uid, 
         email: userCredential.user.email,
@@ -101,6 +102,7 @@ export async function adminLogin(
       maxAge: 60 * 60 * 24, // 1 day
       path: '/',
     });
+
 
     return { 
         success: true, 

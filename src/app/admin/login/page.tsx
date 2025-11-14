@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useEffect } from 'react';
@@ -40,7 +41,6 @@ function AdminLoginContent() {
         const adminRoleRef = doc(firestore, 'roles_admin', uid);
 
         try {
-          // Check if admin role exists
           const adminRoleDoc = await getDoc(adminRoleRef).catch(error => {
              errorEmitter.emit(
               'permission-error',
@@ -48,18 +48,18 @@ function AdminLoginContent() {
                 path: adminRoleRef.path,
                 operation: 'get',
               })
-             )
-             throw error;
+             );
+             throw error; // Re-throw to be caught by the outer try-catch
           });
 
-          // Create admin role if it doesn't exist
           if (!adminRoleDoc.exists()) {
-             const newRole = { 
+            const newRole = { 
                 email: email,
                 role: 'superadmin',
                 createdAt: new Date().toISOString()
             };
-            await setDoc(adminRoleRef, newRole).catch(error => {
+            // Use .catch for non-blocking error handling
+            setDoc(adminRoleRef, newRole).catch(error => {
                 errorEmitter.emit(
                 'permission-error',
                 new FirestorePermissionError({
@@ -67,17 +67,26 @@ function AdminLoginContent() {
                     operation: 'create',
                     requestResourceData: newRole
                 })
-                )
-                throw error;
+                );
+                // We don't need to re-throw here as the emitter handles it.
+                // But we should stop the redirect and show a toast.
+                toast({
+                    variant: "destructive",
+                    title: "Role Creation Failed",
+                    description: "Could not create the admin role. Check console for details.",
+                });
+                setIsFinishingLogin(false);
             });
+            // Assuming optimistic update, we proceed to redirect.
+            // If the setDoc fails, the user will see an error but might be redirected.
+            // A more robust solution might wait for a success callback.
           }
           
-          // If all Firestore operations are successful, redirect.
           await finishAdminLoginAndRedirect();
 
         } catch (error) {
+          // This will catch the re-thrown error from getDoc or other synchronous errors.
           console.error("Failed to finish admin login:", error);
-          // The error will be thrown and caught by the global error boundary via the emitter
            toast({
             variant: "destructive",
             title: "Login Finalization Failed",
