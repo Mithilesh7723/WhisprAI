@@ -9,12 +9,18 @@ import {
   doc,
   getDoc,
   setDoc,
+  collection,
+  getDocs,
+  query,
+  orderBy,
+  limit,
 } from 'firebase/firestore';
 import {
   getAuth,
   signInWithEmailAndPassword,
 } from 'firebase/auth';
 import { initializeServerSideFirebase } from '@/firebase/server-init';
+import { Post, AdminAction } from '@/lib/types';
 
 
 // --- AI Action ---
@@ -56,7 +62,6 @@ export async function adminLogin(
     const userCredential = await signInWithEmailAndPassword(auth, email, password);
     const user = userCredential.user;
 
-    // After successful auth, check/create the admin role doc in Firestore
     const adminRoleRef = doc(firestore, 'roles_admin', user.uid);
     const adminRoleDoc = await getDoc(adminRoleRef);
 
@@ -110,4 +115,25 @@ export async function getAdminSession() {
 export async function adminLogout() {
   cookies().delete(ADMIN_SESSION_COOKIE);
   redirect('/admin/login');
+}
+
+// Server-side data fetching for admin dashboard
+// NOTE: These functions can only be called from Server Components
+
+export async function getAllPostsForAdmin(): Promise<Post[]> {
+  const { firestore } = initializeServerSideFirebase();
+  const postsRef = collection(firestore, 'posts');
+  const q = query(postsRef, orderBy('createdAt', 'desc'));
+  const snapshot = await getDocs(q);
+  return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Post));
+}
+
+export async function getAdminActions(): Promise<AdminAction[]> {
+    const { firestore } = initializeServerSideFirebase();
+    const actionsRef = collection(firestore, 'adminActions');
+    const q = query(actionsRef, orderBy('timestamp', 'desc'), limit(50));
+    const snapshot = await getDocs(q);
+    const actions = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as AdminAction));
+    // Additional client-side sort just to be safe, as Firestore's order-by on timestamps can sometimes be tricky
+    return actions.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 }
