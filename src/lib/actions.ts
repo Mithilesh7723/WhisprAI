@@ -173,41 +173,27 @@ export async function adminLogin(
   const db = await getDb();
 
   try {
-     // Special handling for demo user
-    if (email === 'admin@whispr.com') {
-      try {
-        // Attempt to create the user. If they already exist, this will fail, and we'll sign them in.
-        const newUserCredential = await createUserWithEmailAndPassword(auth, email, password);
-        const adminId = newUserCredential.user.uid;
-        // Set admin role in Firestore
-        await setDoc(doc(db, 'roles_admin', adminId), { 
-          email: email,
-          role: 'superadmin',
-          createdAt: serverTimestamp() 
-        });
-      } catch (error: any) {
-        // If user already exists, that's fine, we'll just log them in.
-        if (error.code !== 'auth/email-already-in-use') {
-          // For other creation errors, we should fail.
-          console.error("Admin user creation failed:", error);
-          return { error: 'Failed to set up admin user.' };
-        }
-      }
-    }
-
-    // Sign in the user
+    // Step 1: Attempt to sign in the user
     const userCredential = await signInWithEmailAndPassword(auth, email, password);
-    
-    // Verify admin role
-    const adminRoleDoc = await getDoc(doc(db, 'roles_admin', userCredential.user.uid));
+    const adminId = userCredential.user.uid;
+
+    // Step 2: Check for the admin role document in Firestore
+    const adminRoleRef = doc(db, 'roles_admin', adminId);
+    const adminRoleDoc = await getDoc(adminRoleRef);
+
+    // Step 3: If the role document doesn't exist, create it.
     if (!adminRoleDoc.exists()) {
-        await signOut(auth); // Sign out if not an admin
-        throw new Error("User does not have admin privileges.");
+      // This handles the case where the user exists in Auth but not in the roles collection
+      await setDoc(adminRoleRef, { 
+        email: email,
+        role: 'superadmin',
+        createdAt: serverTimestamp() 
+      });
     }
 
-    // Set session cookie
+    // Step 4: Set the session cookie
     const session = { 
-        adminId: userCredential.user.uid, 
+        adminId: adminId, 
         email: userCredential.user.email,
         loggedInAt: Date.now() 
     };
@@ -220,12 +206,9 @@ export async function adminLogin(
     });
 
   } catch (error: any) {
-    let errorMessage = 'Invalid email or password.';
-    if (error.message.includes('admin privileges')) {
-        errorMessage = error.message;
-    }
+    // This will catch sign-in failures (wrong password, etc.)
     console.error("Admin login failed:", error.code, error.message);
-    return { error: errorMessage };
+    return { error: 'Invalid email or password.' };
   }
 
   // Redirect on success
@@ -377,3 +360,5 @@ export async function generateAndSetAdminReply(postId: string) {
     return { error: 'Failed to generate AI reply.' };
   }
 }
+
+    
