@@ -81,21 +81,16 @@ export default function Chat() {
     const updatedMessages = [...currentMessages, userMessage];
     setMessages(updatedMessages);
 
-    const historyForAI = [...currentMessages];
+    // Pass an empty array to remove memory
+    const historyForAI: ChatMessage[] = [];
 
     try {
       const res = await runAiChat(
         messageContent,
         user.uid,
-        historyForAI,
+        historyForAI, 
         sessionId
       );
-
-      // The action returns a specific error message on failure.
-      // If we receive that response, we throw to trigger the catch block.
-      if (res.response.startsWith("I'm having a little trouble")) {
-        throw new Error("AI service connection failed.");
-      }
       
       const aiMessage: ChatMessage = {
           sender: 'ai',
@@ -112,7 +107,7 @@ export default function Chat() {
         setSessionId(newDocRef.id);
       }
       
-      const firestoreMessages = [...historyForAI, userMessage, aiMessage];
+      const firestoreMessages = [...updatedMessages, aiMessage];
 
       setDoc(chatDocRef, {
           userId: user.uid,
@@ -261,5 +256,3 @@ export default function Chat() {
     </div>
   );
 }
-
-    
