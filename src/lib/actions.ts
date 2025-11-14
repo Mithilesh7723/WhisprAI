@@ -67,6 +67,9 @@ export async function adminLogin(
 
     if (!adminRoleDoc.exists()) {
       try {
+        // Ensure the user trying to create the doc is the one logged in.
+        // This relies on security rules being set up correctly.
+        // For server-side, this check is more for logical consistency.
         await setDoc(adminRoleRef, {
           email: user.email,
           role: 'superadmin',
@@ -74,7 +77,8 @@ export async function adminLogin(
         });
       } catch (dbError: any) {
         console.error(`Failed to create admin role for ${user.uid}:`, dbError);
-        return { error: 'Authentication successful, but failed to grant admin permissions. Please check Firestore rules.' };
+        // It's possible rules deny creation. The user might exist in auth but not have a role doc.
+        return { error: 'Authentication successful, but you do not have admin permissions.' };
       }
     }
     
@@ -123,6 +127,7 @@ export async function adminLogout() {
 export async function getAllPostsForAdmin(): Promise<Post[]> {
   const { firestore } = initializeServerSideFirebase();
   const postsRef = collection(firestore, 'posts');
+  // Admin role is verified by security rules on the backend
   const q = query(postsRef, orderBy('createdAt', 'desc'));
   const snapshot = await getDocs(q);
   return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Post));
@@ -131,9 +136,10 @@ export async function getAllPostsForAdmin(): Promise<Post[]> {
 export async function getAdminActions(): Promise<AdminAction[]> {
     const { firestore } = initializeServerSideFirebase();
     const actionsRef = collection(firestore, 'adminActions');
+    // Admin role is verified by security rules on the backend
     const q = query(actionsRef, orderBy('timestamp', 'desc'), limit(50));
     const snapshot = await getDocs(q);
-    const actions = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as AdminAction));
+    const actions = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as AdminAction));
     // Additional client-side sort just to be safe, as Firestore's order-by on timestamps can sometimes be tricky
     return actions.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 }

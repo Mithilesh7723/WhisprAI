@@ -1,7 +1,6 @@
 
 'use client';
 
-import { useMemo } from 'react';
 import { Post, AdminAction } from '@/lib/types';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { DataTable } from './data-table';
@@ -10,8 +9,8 @@ import { ActionLog } from './action-log';
 
 // This is now a "dumb" component that receives data as props.
 export function Dashboard({ posts, actions }: { posts: Post[], actions: AdminAction[] }) {
-  // No more client-side data fetching. We just display what we're given.
-  const areQueriesLoading = false; // Data is pre-fetched on the server.
+  // Data is pre-fetched on the server. isLoading is always false on the client.
+  const isLoading = false; 
 
   return (
     <Tabs defaultValue="whispers">
@@ -20,10 +19,10 @@ export function Dashboard({ posts, actions }: { posts: Post[], actions: AdminAct
         <TabsTrigger value="actions">Action Log</TabsTrigger>
       </TabsList>
       <TabsContent value="whispers">
-        <DataTable columns={columns} data={posts ?? []} isLoading={areQueriesLoading} />
+        <DataTable columns={columns} data={posts ?? []} isLoading={isLoading} />
       </TabsContent>
       <TabsContent value="actions">
-        <ActionLog actions={actions ?? []} isLoading={areQueriesLoading} />
+        <ActionLog actions={actions ?? []} isLoading={isLoading} />
       </TabsContent>
     </Tabs>
   );

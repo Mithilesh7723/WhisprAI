@@ -27,7 +27,6 @@ export default async function AdminDashboardPage() {
   ]);
 
   return (
-    // No Firebase provider needed here anymore as data fetching is on the server.
     <div className="min-h-screen bg-secondary">
       <header className="sticky top-0 z-10 border-b bg-background/80 backdrop-blur-sm">
         <div className="container mx-auto flex h-16 items-center justify-between px-4">
