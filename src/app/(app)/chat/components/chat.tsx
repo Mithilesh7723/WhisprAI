@@ -78,7 +78,8 @@ export default function Chat() {
 
     // Optimistically add the user message to the UI
     const currentMessages = messages.filter(m => m.timestamp !== errorState.messageId);
-    setMessages([...currentMessages, userMessage]);
+    const updatedMessages = [...currentMessages, userMessage];
+    setMessages(updatedMessages);
 
     // Keep history without the new message for the AI call
     const historyForAI = [...currentMessages];
@@ -92,7 +93,8 @@ export default function Chat() {
         sessionId
       );
 
-      // If the AI gives a specific error message, handle it.
+      // The action itself will return a specific response on failure.
+      // If we get that response, we throw to trigger the catch block.
       if (res.response.startsWith("I'm having a little trouble")) {
           throw new Error("AI service connection failed.");
       }
@@ -102,8 +104,6 @@ export default function Chat() {
           text: res.response,
           timestamp: new Date().toISOString(),
       };
-
-      const finalMessages = [...currentMessages, userMessage, aiMessage];
       
       // 2. Update Firestore from the client with the full exchange
       let chatDocRef;
@@ -147,7 +147,7 @@ export default function Chat() {
       // On failure, mark the message as errored
       setErrorState({ messageId: userMessage.timestamp });
       // Keep the optimistic user message in the list so they can see what failed
-      setMessages([...currentMessages, userMessage]);
+      setMessages(updatedMessages);
        // Restore the input so the user doesn't lose their message
       setInput(messageContent);
     } finally {
@@ -267,5 +267,3 @@ export default function Chat() {
     </div>
   );
 }
-
-    
