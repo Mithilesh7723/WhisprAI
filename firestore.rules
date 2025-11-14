@@ -30,8 +30,8 @@ service cloud.firestore {
      * @description Anyone can read/list posts, only the post owner can create, update or delete them.
      * @path /posts/{postId}
      * @allow get, list: if isSignedIn();
-     * @allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
-     * @allow update: if isSignedIn() && isOwner(resource.data.userId) && resource != null;
+     * @allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+     * @allow update: if isSignedIn() && isExistingOwner(resource.data.userId);
      * @allow delete: if isSignedIn() && isExistingOwner(resource.data.userId);
      * @deny create: if request.auth == null;
      * @deny update: if !isSignedIn() || !isExistingOwner(resource.data.userId);

@@ -1,7 +1,7 @@
 
 'use client';
 
-import React, { useEffect, useRef, useActionState } from 'react';
+import React, { useEffect, useRef, useActionState, useMemo } from 'react';
 import { Post } from '@/lib/types';
 import { postWhisper } from '@/lib/actions';
 import { useAnonymousSignIn } from '@/lib/hooks/use-anonymous-sign-in';
@@ -64,11 +64,18 @@ export default function Feed() {
   const postsQuery = useMemoFirebase(() => {
     // Wait until authentication is complete before creating the query.
     if (!firestore || isAuthLoading) return null;
-    // Changed query from '!=' to '==' for compatibility with Firestore security rules.
-    return query(collection(firestore, 'posts'), where('hidden', '==', false), orderBy('createdAt', 'desc'));
+    // Removed orderBy('createdAt', 'desc') to avoid complex query issues with security rules.
+    // Sorting will be handled on the client.
+    return query(collection(firestore, 'posts'), where('hidden', '==', false));
   }, [firestore, isAuthLoading]);
 
-  const { data: posts, isLoading: isPostsLoading } = useCollection<Post>(postsQuery);
+  const { data: rawPosts, isLoading: isPostsLoading } = useCollection<Post>(postsQuery);
+
+  const posts = useMemo(() => {
+    if (!rawPosts) return [];
+    // Sort posts on the client-side since we removed it from the query
+    return rawPosts.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  }, [rawPosts]);
 
   const [formState, formAction] = useActionState(postWhisper, { error: undefined, success: undefined });
 
