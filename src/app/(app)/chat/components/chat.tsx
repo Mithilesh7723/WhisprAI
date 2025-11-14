@@ -94,6 +94,8 @@ export default function Chat() {
       // The action now returns a specific error message on failure.
       // We check for that to know if we should proceed.
       if (res.response.startsWith("I'm having a little trouble")) {
+          // This special check allows us to fall through to the catch block
+          // which will handle displaying the "Try Again" UI.
           throw new Error("AI service connection failed.");
       }
 
