@@ -64,7 +64,8 @@ export default function Feed() {
   const postsQuery = useMemoFirebase(() => {
     // Wait until authentication is complete before creating the query.
     if (!firestore || isAuthLoading) return null;
-    return query(collection(firestore, 'posts'), where('hidden', '!=', true), orderBy('hidden'), orderBy('createdAt', 'desc'));
+    // Changed query from '!=' to '==' for compatibility with Firestore security rules.
+    return query(collection(firestore, 'posts'), where('hidden', '==', false), orderBy('createdAt', 'desc'));
   }, [firestore, isAuthLoading]);
 
   const { data: posts, isLoading: isPostsLoading } = useCollection<Post>(postsQuery);

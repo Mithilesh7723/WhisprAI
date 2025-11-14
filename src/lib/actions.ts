@@ -1,3 +1,4 @@
+
 'use server';
 
 import { revalidatePath } from 'next/cache';
@@ -21,6 +22,7 @@ import {
   updateDoc,
   limit,
   setDoc,
+  Timestamp,
 } from 'firebase/firestore';
 import {
   getAuth,
@@ -29,7 +31,11 @@ import {
   createUserWithEmailAndPassword,
 } from 'firebase/auth';
 import { initializeServerSideFirebase } from '@/firebase/server-init';
-import { setDocumentNonBlocking, addDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase';
+import {
+  setDocumentNonBlocking,
+  addDocumentNonBlocking,
+  updateDocumentNonBlocking,
+} from '@/firebase';
 
 async function getDb() {
   const { firestore } = initializeServerSideFirebase();
@@ -49,15 +55,13 @@ export async function getPosts(filter?: AILabel) {
   const q = filter
     ? query(
         postsRef,
-        where('hidden', '!=', true),
+        where('hidden', '==', false),
         where('aiLabel', '==', filter),
-        orderBy('hidden'),
         orderBy('createdAt', 'desc')
       )
     : query(
         postsRef,
-        where('hidden', '!=', true),
-        orderBy('hidden'),
+        where('hidden', '==', false),
         orderBy('createdAt', 'desc')
       );
 
@@ -208,7 +212,10 @@ export async function adminLogin(
   } catch (error: any) {
     // This will catch sign-in failures (wrong password, etc.)
     console.error("Admin login failed:", error.code, error.message);
-    return { error: 'Invalid email or password.' };
+    if (error.code === 'auth/invalid-credential') {
+        return { error: 'Invalid email or password.' };
+    }
+    return { error: 'An unexpected error occurred during login.' };
   }
 
   // Redirect on success
@@ -267,7 +274,8 @@ export async function getAllPostsForAdmin(): Promise<Post[]> {
   const posts: Post[] = [];
   querySnapshot.forEach((doc) => {
     const data = doc.data();
-    const createdAt = data.createdAt?.toDate ? data.createdAt.toDate().toISOString() : new Date().toISOString();
+    // Convert Firestore Timestamp to ISO string
+    const createdAt = (data.createdAt as Timestamp)?.toDate ? (data.createdAt as Timestamp).toDate().toISOString() : new Date().toISOString();
     posts.push({ 
         postId: doc.id, 
         id: doc.id,

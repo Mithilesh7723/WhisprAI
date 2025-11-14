@@ -1,3 +1,4 @@
+
 /**
  * @fileOverview Firestore Security Rules for the application.
  *
@@ -38,7 +39,7 @@ service cloud.firestore {
      * @principle Public read access, owner-only writes, verified identity.
      */
     match /posts/{postId} {
-      allow get, list: if true;
+      allow read: if true;
       allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
       allow update: if isSignedIn() && isExistingOwner(resource.data.userId);
       allow delete: if isSignedIn() && isExistingOwner(resource.data.userId);
@@ -121,7 +122,7 @@ service cloud.firestore {
     }
 
     function isAdmin() {
-        return get(/databases/$(database)/documents/roles_admin/$(request.auth.uid)).data.role == 'superadmin';
+        return exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid));
     }
   }
 }
