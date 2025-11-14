@@ -1,7 +1,9 @@
+
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { useFormState, useFormStatus } from 'react-dom';
+import { useActionState } from 'react';
+import { useFormStatus } from 'react-dom';
 import { adminLogin, finishAdminLoginAndRedirect } from '@/lib/actions';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
@@ -32,7 +34,7 @@ function LoginButton() {
 }
 
 function AdminLoginContent() {
-  const [formState, formAction] = useFormState(adminLogin, initialState);
+  const [formState, formAction] = useActionState(adminLogin, initialState);
   const { user: authUser, isUserLoading } = useUser();
   const firestore = useFirestore();
   const [isFinishingLogin, setIsFinishingLogin] = useState(false);
