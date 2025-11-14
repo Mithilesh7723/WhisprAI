@@ -32,8 +32,8 @@ service cloud.firestore {
      */
     match /posts/{postId} {
       allow read, write: if isAdmin();
-      allow list: if isSignedIn() && request.query.where.hidden == false;
-      allow get: if isSignedIn() && resource.data.hidden == false;
+      allow list: if request.query.where.hidden == false;
+      allow get: if resource.data.hidden == false;
       allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid && request.resource.data.hidden == false;
       allow update: if isSignedIn() && isExistingOwner(resource.data.userId);
       allow delete: if isSignedIn() && isExistingOwner(resource.data.userId);
