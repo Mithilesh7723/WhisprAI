@@ -8,19 +8,26 @@ export const metadata = {
 
 export default function FeedPage() {
   return (
-    <div className="container mx-auto max-w-2xl px-4 py-8">
-      <header className="mb-8 flex items-center gap-4">
+    <div className="flex h-full flex-col">
+      <header className="flex items-center justify-between border-b bg-card p-4 md:justify-center">
         <div className="md:hidden">
           <SidebarTrigger />
         </div>
-        <div>
-          <h1 className="font-headline text-3xl font-bold">Whispr Feed</h1>
-          <p className="text-muted-foreground">
+        <div className="text-center">
+          <h1 className="font-headline text-xl font-bold md:text-3xl">
+            Whispr Feed
+          </h1>
+          <p className="hidden text-muted-foreground md:block">
             A real-time feed of anonymous thoughts and feelings.
           </p>
         </div>
+        <div className="hidden w-8 md:block">{/* Spacer */}</div>
       </header>
-      <Feed />
+      <div className="flex-grow overflow-auto">
+        <div className="container mx-auto max-w-2xl px-4 py-8">
+          <Feed />
+        </div>
+      </div>
     </div>
   );
 }

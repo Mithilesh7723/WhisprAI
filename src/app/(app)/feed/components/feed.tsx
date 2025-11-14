@@ -174,28 +174,30 @@ export default function Feed() {
 
   return (
     <>
-      <form onSubmit={handleSubmit} className="mb-8">
-        <Card>
-          <CardContent className="p-4">
-            <Textarea
-              ref={textareaRef}
-              name="content"
-              placeholder="Share a thought, a feeling, a moment..."
-              className="min-h-24 resize-none border-0 px-0 shadow-none focus-visible:ring-0"
-              required
-              minLength={5}
-              disabled={!user || isSubmitting}
-              value={content}
-              onChange={(e) => setContent(e.target.value)}
-            />
-            <div className="flex justify-end">
-               <Button type="submit" disabled={isSubmitting || !user || content.trim().length < 5} className="mt-2">
-                {isSubmitting ? 'Whispering...' : 'Whisper'}
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      </form>
+      <div className="mb-8">
+        <form onSubmit={handleSubmit}>
+            <Card>
+            <CardContent className="p-4">
+                <Textarea
+                ref={textareaRef}
+                name="content"
+                placeholder="Share a thought, a feeling, a moment..."
+                className="min-h-24 resize-none border-0 px-0 shadow-none focus-visible:ring-0"
+                required
+                minLength={5}
+                disabled={!user || isSubmitting}
+                value={content}
+                onChange={(e) => setContent(e.target.value)}
+                />
+                <div className="flex justify-end">
+                <Button type="submit" disabled={isSubmitting || !user || content.trim().length < 5} className="mt-2">
+                    {isSubmitting ? 'Whispering...' : 'Whisper'}
+                </Button>
+                </div>
+            </CardContent>
+            </Card>
+        </form>
+      </div>
 
       <div className="space-y-4">
         {isLoading ? (
