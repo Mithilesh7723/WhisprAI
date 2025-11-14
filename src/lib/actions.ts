@@ -66,20 +66,7 @@ export async function adminLogin(
     const adminRoleDoc = await getDoc(adminRoleRef);
 
     if (!adminRoleDoc.exists()) {
-      try {
-        // Ensure the user trying to create the doc is the one logged in.
-        // This relies on security rules being set up correctly.
-        // For server-side, this check is more for logical consistency.
-        await setDoc(adminRoleRef, {
-          email: user.email,
-          role: 'superadmin',
-          createdAt: new Date().toISOString(),
-        });
-      } catch (dbError: any) {
-        console.error(`Failed to create admin role for ${user.uid}:`, dbError);
-        // It's possible rules deny creation. The user might exist in auth but not have a role doc.
-        return { error: 'Authentication successful, but you do not have admin permissions.' };
-      }
+      return { error: 'Authentication successful, but you do not have admin permissions.' };
     }
     
     const session = {
@@ -119,27 +106,4 @@ export async function getAdminSession() {
 export async function adminLogout() {
   cookies().delete(ADMIN_SESSION_COOKIE);
   redirect('/admin/login');
-}
-
-// Server-side data fetching for admin dashboard
-// NOTE: These functions can only be called from Server Components
-
-export async function getAllPostsForAdmin(): Promise<Post[]> {
-  const { firestore } = initializeServerSideFirebase();
-  const postsRef = collection(firestore, 'posts');
-  // Admin role is verified by security rules on the backend
-  const q = query(postsRef, orderBy('createdAt', 'desc'));
-  const snapshot = await getDocs(q);
-  return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Post));
-}
-
-export async function getAdminActions(): Promise<AdminAction[]> {
-    const { firestore } = initializeServerSideFirebase();
-    const actionsRef = collection(firestore, 'adminActions');
-    // Admin role is verified by security rules on the backend
-    const q = query(actionsRef, orderBy('timestamp', 'desc'), limit(50));
-    const snapshot = await getDocs(q);
-    const actions = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as AdminAction));
-    // Additional client-side sort just to be safe, as Firestore's order-by on timestamps can sometimes be tricky
-    return actions.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 }
