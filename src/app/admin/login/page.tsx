@@ -1,8 +1,8 @@
 
 'use client';
 
-import React, { useEffect, useState } from 'react';
-import { useActionState, useFormStatus } from 'react-dom';
+import React, { useEffect, useState, useActionState } from 'react';
+import { useFormStatus } from 'react-dom';
 import { adminLogin, finishAdminLoginAndRedirect } from '@/lib/actions';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
@@ -83,7 +83,7 @@ function AdminLoginContent() {
           });
         }
         
-        await finishAdminLoginAndRedirect(userToFinalize.uid, userToFinalize.email);
+        await finishAdminLoginAndRedirect();
 
       } catch (error: any) {
         console.error("Error during login finalization:", error);
