@@ -32,7 +32,7 @@ export default function Home() {
           </div>
           <div className="relative h-96 w-full max-w-xl lg:h-[30rem] lg:w-[34rem]">
             <Image
-              src="/hero-animation.gif"
+              src="https://storage.googleapis.com/project-deft-public-resources/hero-animation.gif"
               alt="An animation showing a comforting interaction."
               fill
               priority
