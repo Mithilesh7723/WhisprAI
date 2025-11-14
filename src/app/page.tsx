@@ -33,7 +33,7 @@ export default function Home() {
           </div>
           <div className="relative h-96 w-full max-w-xl lg:h-[30rem] lg:w-[34rem]">
             <Image
-              src="https://content-salmon-9kdjzn7oyh.edgeone.app/Gemini_Generated_Image_pgn00hpgn00hpgn0.png"
+              src="https://drive.google.com/uc?export=view&id=1SK6AYzL1Jbqqnsva4cgQclsjjeTlF5xZ""
               alt="An abstract illustration representing a whisper or a thought."
               fill
               priority
