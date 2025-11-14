@@ -5,7 +5,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { DataTable } from './data-table';
 import { columns } from './columns';
 import { ActionLog } from './action-log';
-import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
+import { useCollection, useFirestore, useMemoFirebase, useUser } from '@/firebase';
 import { collection, query, orderBy } from 'firebase/firestore';
 
 type DashboardProps = {
@@ -15,16 +15,17 @@ type DashboardProps = {
 
 export function Dashboard({ initialPosts, initialActions }: DashboardProps) {
   const firestore = useFirestore();
+  const { user } = useUser();
 
   const postsQuery = useMemoFirebase(() => {
-    if (!firestore) return null;
+    if (!firestore || !user) return null;
     return query(collection(firestore, 'posts'), orderBy('createdAt', 'desc'));
-  }, [firestore]);
+  }, [firestore, user]);
 
   const actionsQuery = useMemoFirebase(() => {
-    if (!firestore) return null;
+    if (!firestore || !user) return null;
     return query(collection(firestore, 'adminActions'), orderBy('timestamp', 'desc'));
-  }, [firestore]);
+  }, [firestore, user]);
 
   const { data: posts, isLoading: postsLoading } = useCollection<Post>(postsQuery);
   const { data: actions, isLoading: actionsLoading } = useCollection<AdminAction>(actionsQuery);
