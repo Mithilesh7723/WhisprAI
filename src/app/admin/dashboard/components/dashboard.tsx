@@ -1,39 +1,29 @@
 
 'use client';
 
-import { useMemo } from 'react';
+import React from 'react';
 import { Post, AdminAction } from '@/lib/types';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { DataTable } from './data-table';
 import { columns } from './columns';
 import { ActionLog } from './action-log';
-import { useCollection, useFirestore, useUser, useMemoFirebase } from '@/firebase';
-import { collection, query, orderBy, limit } from 'firebase/firestore';
 
-export function Dashboard() {
-  const firestore = useFirestore();
-  const { user } = useUser();
+interface DashboardProps {
+  initialPosts: Post[];
+  initialActions: AdminAction[];
+}
 
-  const postsQuery = useMemoFirebase(() => {
-    if (!firestore || !user) return null; // Wait for user
-    return query(collection(firestore, 'posts'), orderBy('createdAt', 'desc'));
-  }, [firestore, user]);
+export function Dashboard({ initialPosts, initialActions }: DashboardProps) {
+  // This component is now a "dumb" component that receives data via props.
+  // All data fetching (useUser, useCollection, etc.) has been removed to prevent client-side permission errors.
 
-  const actionsQuery = useMemoFirebase(() => {
-    if (!firestore || !user) return null; // Wait for user
-    return query(collection(firestore, 'adminActions'), orderBy('timestamp', 'desc'), limit(100));
-  }, [firestore, user]);
+  const [posts] = React.useState(initialPosts);
+  const [actions] = React.useState(initialActions);
 
-  const { data: posts, isLoading: postsLoading } = useCollection<Post>(postsQuery);
-  const { data: rawActions, isLoading: actionsLoading } = useCollection<AdminAction>(actionsQuery);
-
-  const sortedActions = useMemo(() => {
-    if (!rawActions) return [];
-    // Ensure client-side sorting as well, just in case
-    return rawActions.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-  }, [rawActions]);
-
-  const isLoading = postsLoading || actionsLoading;
+  // While initial data is loaded on the server, we can still show a loading state
+  // if we were to introduce client-side updates/re-fetching in the future.
+  // For now, isLoading is false as data is pre-loaded.
+  const isLoading = false;
 
   return (
     <Tabs defaultValue="whispers">
@@ -45,7 +35,7 @@ export function Dashboard() {
         <DataTable columns={columns} data={posts ?? []} isLoading={isLoading} />
       </TabsContent>
       <TabsContent value="actions">
-        <ActionLog actions={sortedActions ?? []} isLoading={isLoading} />
+        <ActionLog actions={actions ?? []} isLoading={isLoading} />
       </TabsContent>
     </Tabs>
   );

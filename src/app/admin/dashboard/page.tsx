@@ -1,5 +1,5 @@
 
-import { getAdminSession, adminLogout } from '@/lib/actions';
+import { getAdminSession, adminLogout, getAllPostsForAdmin, getAdminActions } from '@/lib/actions';
 import { redirect } from 'next/navigation';
 import { Dashboard } from './components/dashboard';
 import { AppLogo } from '@/components/app-logo';
@@ -14,7 +14,12 @@ export default async function AdminDashboardPage() {
     redirect('/admin/login');
   }
 
+  // Fetch data on the server
+  const posts = await getAllPostsForAdmin();
+  const actions = await getAdminActions();
+
   return (
+    // FirebaseClientProvider is still needed for client-side actions within the dashboard (e.g., re-labeling)
     <FirebaseClientProvider>
         <div className="min-h-screen bg-secondary">
           <header className="sticky top-0 z-10 border-b bg-background/80 backdrop-blur-sm">
@@ -32,7 +37,8 @@ export default async function AdminDashboardPage() {
             </div>
           </header>
           <main className="container mx-auto p-4">
-            <Dashboard />
+            {/* Pass server-fetched data to the client component */}
+            <Dashboard initialPosts={posts} initialActions={actions} />
           </main>
         </div>
     </FirebaseClientProvider>

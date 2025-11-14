@@ -8,7 +8,6 @@ import {
   getFirestore,
   doc,
   getDoc,
-  setDoc,
   collection,
   getDocs,
   query,
@@ -21,8 +20,6 @@ import {
 } from 'firebase/auth';
 import { initializeServerSideFirebase } from '@/firebase/server-init';
 import { Post, AdminAction } from '@/lib/types';
-import { generateAdminReply } from '@/ai/flows/generate-admin-reply';
-
 
 // --- AI Action ---
 
@@ -107,4 +104,33 @@ export async function getAdminSession() {
 export async function adminLogout() {
   cookies().delete(ADMIN_SESSION_COOKIE);
   redirect('/admin/login');
+}
+
+
+// --- SERVER-SIDE DATA FETCHING ---
+
+export async function getAllPostsForAdmin(): Promise<Post[]> {
+    const { firestore } = initializeServerSideFirebase();
+    try {
+        const postsRef = collection(firestore, 'posts');
+        const q = query(postsRef, orderBy('createdAt', 'desc'));
+        const querySnapshot = await getDocs(q);
+        return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Post));
+    } catch (error) {
+        console.error("Error fetching all posts:", error);
+        return []; // Return empty array on error
+    }
+}
+
+export async function getAdminActions(): Promise<AdminAction[]> {
+    const { firestore } = initializeServerSideFirebase();
+    try {
+        const actionsRef = collection(firestore, 'adminActions');
+        const q = query(actionsRef, orderBy('timestamp', 'desc'), limit(100));
+        const querySnapshot = await getDocs(q);
+        return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as AdminAction));
+    } catch (error) {
+        console.error("Error fetching admin actions:", error);
+        return []; // Return empty array on error
+    }
 }
