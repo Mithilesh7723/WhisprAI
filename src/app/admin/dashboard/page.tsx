@@ -1,37 +1,17 @@
 
-'use client';
-
 import { getAdminSession, adminLogout } from '@/lib/actions';
-import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { redirect } from 'next/navigation';
 import { Dashboard } from './components/dashboard';
 import { AppLogo } from '@/components/app-logo';
 import { Button } from '@/components/ui/button';
-import { LogOut, Loader2 } from 'lucide-react';
+import { LogOut } from 'lucide-react';
 import { FirebaseClientProvider } from '@/firebase';
 
-export default function AdminDashboardPage() {
-  const router = useRouter();
-  const [session, setSession] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    getAdminSession().then((sessionData) => {
-      if (!sessionData) {
-        router.replace('/admin/login');
-      } else {
-        setSession(sessionData);
-        setLoading(false);
-      }
-    });
-  }, [router]);
+export default async function AdminDashboardPage() {
+  const session = await getAdminSession();
   
-  if (loading || !session) {
-    return (
-        <div className="flex min-h-screen items-center justify-center bg-secondary">
-            <Loader2 className="h-8 w-8 animate-spin" />
-        </div>
-    )
+  if (!session) {
+    redirect('/admin/login');
   }
 
   return (
