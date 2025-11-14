@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Post } from '@/lib/types';
 import { getPosts, postWhisper } from '@/lib/actions';
 import { useAnonymousId } from '@/lib/hooks/use-anonymous-id';
