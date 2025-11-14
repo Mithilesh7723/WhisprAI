@@ -133,7 +133,6 @@ export default function Chat() {
       }
 
     } catch (error) {
-      console.error("Failed to send message or update chat:", error);
       // Set error state to show the "Try Again" UI
       setErrorState({ messageId: userMessage.timestamp });
       // Keep the user's message in the chat list
