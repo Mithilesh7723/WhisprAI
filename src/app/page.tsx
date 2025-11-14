@@ -34,13 +34,13 @@ export default function Home() {
             </Button>
           </div>
           {heroImage && (
-            <div className="relative h-64 w-full max-w-md lg:h-80 lg:w-96">
+            <div className="relative h-80 w-full max-w-lg lg:h-96 lg:w-[30rem]">
               <Image
                 src={heroImage.imageUrl}
                 alt={heroImage.description}
                 fill
                 priority
-                className="rounded-2xl object-cover shadow-2xl"
+                className="rounded-3xl object-cover shadow-2xl shadow-primary/10"
                 data-ai-hint={heroImage.imageHint}
               />
             </div>
