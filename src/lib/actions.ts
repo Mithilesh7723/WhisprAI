@@ -12,15 +12,16 @@ import {
   orderBy,
 } from 'firebase/firestore';
 import { initializeServerSideFirebase } from '@/firebase/server-init';
-import { Post, AdminAction } from '@/lib/types';
+import { Post, AdminAction, ChatMessage } from '@/lib/types';
 
 // --- AI Action ---
 
-export async function runAiChat(message: string, userId: string, sessionId: string | undefined) {
+export async function runAiChat(message: string, userId: string, history: ChatMessage[], sessionId: string | undefined) {
     try {
         const aiResult = await provideAISupportChat({
             message,
             userId,
+            history,
             sessionId: sessionId,
         });
         return {

@@ -75,14 +75,16 @@ export default function Chat() {
     };
     const currentMessages = [...messages, userMessage];
     setMessages(currentMessages);
+    const currentInput = input;
     setInput('');
     setIsLoading(true);
 
     try {
       // 1. Get AI response from server action
       const res = await runAiChat(
-        input,
+        currentInput,
         user.uid,
+        messages, // Pass the history
         sessionId
       );
       

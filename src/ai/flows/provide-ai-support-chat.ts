@@ -10,9 +10,11 @@
 
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
+import { ChatMessage } from '@/lib/types';
 
 const ProvideAISupportChatInputSchema = z.object({
-  message: z.string().describe('The user message to the AI support chat.'),
+  history: z.array(z.custom<ChatMessage>()).describe('The history of the conversation so far.'),
+  message: z.string().describe('The latest user message to the AI support chat.'),
   sessionId: z.string().optional().describe('The session ID of the chat.'),
   userId: z.string().describe('The anonymous user ID.'),
 });
@@ -44,7 +46,16 @@ const prompt = ai.definePrompt({
 
   You MUST analyze the user's message for signs of distress and set the 'escalate' output field to true if the user needs immediate help or expresses suicidal thoughts. 
 
-  User Message: {{{message}}}
+  Conversation History:
+  {{#each history}}
+    {{#if (eq sender "user")}}
+      User: {{{text}}}
+    {{else}}
+      AI: {{{text}}}
+    {{/if}}
+  {{/each}}
+
+  Latest User Message: {{{message}}}
   `,
 });
 
