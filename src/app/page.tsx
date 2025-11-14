@@ -91,6 +91,19 @@ export default function Home() {
 
       <footer className="container mx-auto px-4 py-12">
         <HelplinePanel />
+        <div className="mt-12 border-t border-border pt-8 text-center text-muted-foreground">
+            <p className="text-sm">
+                Crafted at Horizon Flare Innovation Studio.
+            </p>
+            <div className="mt-4 flex justify-center gap-x-6 text-sm">
+                <a href="mailto:contact@horizonflare.studio" className="hover:text-foreground">
+                    contact@horizonflare.studio
+                </a>
+                <a href="https://horizonflare.studio" target="_blank" rel="noopener noreferrer" className="hover:text-foreground">
+                    horizonflare.studio
+                </a>
+            </div>
+        </div>
       </footer>
     </div>
   );
