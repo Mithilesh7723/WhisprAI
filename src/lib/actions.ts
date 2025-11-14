@@ -1,6 +1,7 @@
 
 'use server';
 
+import 'dotenv/config';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { provideAISupportChat } from '@/ai/flows/provide-ai-support-chat';

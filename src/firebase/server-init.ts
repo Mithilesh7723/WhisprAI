@@ -2,30 +2,28 @@
 // It should not be imported into any client-side code.
 
 import { firebaseConfig } from '@/firebase/config';
-import { initializeApp, getApps, getApp } from 'firebase/app';
+import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore'
+import { getFirestore } from 'firebase/firestore';
+
+let app: FirebaseApp;
+if (!getApps().length) {
+  app = initializeApp(firebaseConfig);
+} else {
+  app = getApp();
+}
+
+const auth = getAuth(app);
+const firestore = getFirestore(app);
 
 /**
  * Initializes and returns Firebase services for server-side use.
  * Ensures that initialization happens only once.
  */
 export function initializeServerSideFirebase() {
-  // Check if any app is initialized. If not, initialize one.
-  if (!getApps().length) {
-    const firebaseApp = initializeApp(firebaseConfig);
-    return {
-      firebaseApp,
-      auth: getAuth(firebaseApp),
-      firestore: getFirestore(firebaseApp)
-    };
-  } else {
-    // If an app is already initialized, get it and return the services.
-    const firebaseApp = getApp();
-    return {
-      firebaseApp,
-      auth: getAuth(firebaseApp),
-      firestore: getFirestore(firebaseApp)
-    };
-  }
+  return {
+    firebaseApp: app,
+    auth: auth,
+    firestore: firestore,
+  };
 }
