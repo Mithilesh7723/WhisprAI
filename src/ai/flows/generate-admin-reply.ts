@@ -1,7 +1,8 @@
+
 'use server';
 
 /**
- * @fileOverview An AI agent for generating admin replies to user messages.
+ * @fileOverview An AI agent for generating supportive feedback to user whispers.
  *
  * - generateAdminReply - A function that generates an AI-suggested reply to a given user message.
  * - GenerateAdminReplyInput - The input type for the generateAdminReply function.
@@ -29,20 +30,24 @@ const prompt = ai.definePrompt({
   name: 'generateAdminReplyPrompt',
   input: {schema: GenerateAdminReplyInputSchema},
   output: {schema: GenerateAdminReplyOutputSchema},
-  prompt: `You are an empathetic and helpful AI assistant tasked with generating replies to user messages in a mental health support app called Whispr.
+  prompt: `You are an empathetic and helpful AI assistant in a mental health support app called Whispr.
 
-  The goal is to provide quick, supportive, and non-medical advice to users in distress.
+  Your goal is to provide a quick, supportive, and non-medical piece of feedback to a user who has just shared a "whisper" (an anonymous post).
 
-  Generate a reply to the following message:
+  Generate a supportive and validating reply to the following whisper:
 
-  {{{message}}}
+  "{{{message}}}"
 
   The reply should:
-  - Be concise and easy to understand.
-  - Offer words of encouragement and support.
-  - Avoid giving medical advice or making diagnoses.
-  - Suggest seeking professional help or contacting a crisis hotline if the message indicates severe distress.
+  - Acknowledge what the user shared.
+  - Be concise, gentle, and easy to understand.
+  - Offer words of encouragement and validation.
+  - Sound like a caring friend, not a robot or a doctor.
+  - **Do not** give medical advice or make diagnoses.
+  - **Do not** ask questions. This is a one-time feedback message.
+  - If the message seems to indicate severe distress, you can gently suggest using the app's other resources, but do not be alarming.
   - Prioritize user safety and well-being.
+  - Start with a gentle opening like "Thank you for sharing that," or "It sounds like a lot is on your mind.".
   `,
 });
 

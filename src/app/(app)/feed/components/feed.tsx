@@ -17,6 +17,15 @@ import { collection, query, where, addDoc } from 'firebase/firestore';
 import { classifyWhisper } from '@/ai/flows/classify-whisper-messages';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { generateAdminReply } from '@/ai/flows/generate-admin-reply';
+import { Sparkles } from 'lucide-react';
 
 function FeedItem({ post }: { post: Post }) {
   return (
@@ -52,13 +61,15 @@ export default function Feed() {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [content, setContent] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [aiFeedback, setAiFeedback] = useState<string | null>(null);
   
   const firestore = useFirestore();
 
   const postsQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
-    // This query is now simpler and relies on client-side sorting.
-    return query(collection(firestore, 'posts'), where('hidden', '==', false));
+    // This query now relies on client-side sorting.
+    // It has been simplified to not order by createdAt to avoid needing a composite index.
+    return query(collection(firestore, 'posts'));
   }, [firestore, user]);
 
   const { data: rawPosts, isLoading: isPostsLoading } = useCollection<Post>(postsQuery);
@@ -80,14 +91,15 @@ export default function Feed() {
       return;
     }
     setIsSubmitting(true);
+    const originalContent = content;
 
     try {
-      const classification = await classifyWhisper({ content });
+      const classification = await classifyWhisper({ content: originalContent });
       const postsCollection = collection(firestore, 'posts');
 
       await addDoc(postsCollection, {
         userId: user.uid,
-        content,
+        content: originalContent,
         createdAt: new Date().toISOString(),
         aiLabel: classification.aiLabel,
         aiConfidence: classification.aiConfidence,
@@ -113,6 +125,13 @@ export default function Feed() {
       if (textareaRef.current) {
         textareaRef.current.value = '';
       }
+
+      // After successful submission, generate and show AI feedback
+      const feedbackResult = await generateAdminReply({ message: originalContent });
+      if (feedbackResult.reply) {
+        setAiFeedback(feedbackResult.reply);
+      }
+
     } catch (error) {
        console.error('Client-side postWhisper failed:', error);
        toast({
@@ -175,6 +194,18 @@ export default function Feed() {
           </div>
         )}
       </div>
+      <Dialog open={!!aiFeedback} onOpenChange={() => setAiFeedback(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Sparkles className="text-primary" />A Thought for You
+            </DialogTitle>
+            <DialogDescription className="pt-4 text-base text-foreground">
+              {aiFeedback}
+            </DialogDescription>
+          </DialogHeader>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }
