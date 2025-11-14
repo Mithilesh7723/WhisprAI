@@ -3,7 +3,7 @@ import { SidebarTrigger } from '@/components/ui/sidebar';
 import Feed from './components/feed';
 
 export const metadata = {
-  title: 'The Whispering Wall - Whispr',
+  title: 'Whispr Feed - Whispr',
 };
 
 export default function FeedPage() {
@@ -14,9 +14,9 @@ export default function FeedPage() {
           <SidebarTrigger />
         </div>
         <div>
-          <h1 className="font-headline text-3xl font-bold">The Whispering Wall</h1>
+          <h1 className="font-headline text-3xl font-bold">Whispr Feed</h1>
           <p className="text-muted-foreground">
-            Share what's on your mind. All whispers are anonymous.
+            A real-time feed of anonymous thoughts and feelings.
           </p>
         </div>
       </header>
