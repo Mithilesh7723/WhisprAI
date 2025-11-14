@@ -90,13 +90,12 @@ export default function Chat() {
         historyForAI,
         sessionId
       );
-      
-      // The action now returns a specific error message on failure.
-      // We check for that to know if we should proceed.
+
+      // The action returns a specific error message on failure.
+      // If we receive that, it means the `provideAISupportChat` flow failed in a predictable way.
+      // We can then let the catch block handle the UI update.
       if (res.response.startsWith("I'm having a little trouble")) {
-          // This special check allows us to fall through to the catch block
-          // which will handle displaying the "Try Again" UI.
-          throw new Error("AI service connection failed.");
+        throw new Error("AI service connection failed.");
       }
 
       const aiMessage: ChatMessage = {
