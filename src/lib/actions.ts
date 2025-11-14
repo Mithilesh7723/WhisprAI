@@ -187,9 +187,56 @@ export async function getAdminActions(): Promise<AdminAction[]> {
   return actions;
 }
 
+export async function updatePostLabel(postId: string, label: AILabel) {
+  const adminId = await verifyAdminAndGetId();
+  const db = await getDb();
+
+  const postRef = doc(db, 'posts', postId);
+  const postSnap = await getDoc(postRef);
+  if (!postSnap.exists()) throw new Error('Post not found');
+
+  await updateDoc(postRef, { aiLabel: label });
+
+  const actionsRef = collection(db, 'adminActions');
+  await addDoc(actionsRef, {
+    adminId,
+    targetId: postId,
+    type: 're-label',
+    timestamp: new Date().toISOString(),
+    details: { from: postSnap.data().aiLabel, to: label },
+  });
+
+  revalidatePath('/admin/dashboard');
+  return { success: true };
+}
+
+export async function togglePostVisibility(postId: string) {
+  const adminId = await verifyAdminAndGetId();
+  const db = await getDb();
+
+  const postRef = doc(db, 'posts', postId);
+  const postSnap = await getDoc(postRef);
+  if (!postSnap.exists()) throw new Error('Post not found');
+
+  const isHidden = postSnap.data().hidden || false;
+  await updateDoc(postRef, { hidden: !isHidden });
+
+  const actionsRef = collection(db, 'adminActions');
+  await addDoc(actionsRef, {
+    adminId,
+    targetId: postId,
+    type: isHidden ? 'unhide' : 'hide',
+    timestamp: new Date().toISOString(),
+    details: { wasHidden: isHidden },
+  });
+
+  revalidatePath('/admin/dashboard');
+  return { success: true };
+}
+
 export async function generateAndSetAdminReply(postId: string) {
   try {
-    await verifyAdminAndGetId();
+    const adminId = await verifyAdminAndGetId();
     const db = await getDb();
     const postRef = doc(db, 'posts', postId);
     const postSnap = await getDoc(postRef);
@@ -198,8 +245,19 @@ export async function generateAndSetAdminReply(postId: string) {
     const postContent = postSnap.data().content;
     
     const { reply } = await generateAdminReply({ message: postContent });
+
+    await updateDoc(postRef, { reply });
+
+    const actionsRef = collection(db, 'adminActions');
+    await addDoc(actionsRef, {
+        adminId,
+        targetId: postId,
+        type: 'reply',
+        timestamp: new Date().toISOString(),
+        details: { generatedReply: reply },
+    });
     
-    // This action only returns the reply, the client will do the update
+    revalidatePath('/admin/dashboard');
     return { success: true, reply };
   } catch (error: any) {
     console.error('Failed to generate admin reply', error);
