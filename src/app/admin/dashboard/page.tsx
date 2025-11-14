@@ -54,7 +54,7 @@ function PageContent() {
 
       // 2. If there's no Firebase user or it's not the admin, sign in client-side.
       // This is safe because we've already verified the secure HTTP-only cookie.
-      if (auth.currentUser?.email !== 'admin@whispr.com') {
+      if (auth && (!auth.currentUser || auth.currentUser.email !== 'admin@whispr.com')) {
         try {
           // Use hardcoded credentials for client-side sign-in.
           await signInWithEmailAndPassword(auth, 'admin@whispr.com', 'password123');
@@ -66,15 +66,15 @@ function PageContent() {
       }
     }
     
-    // Only run this logic once the initial auth state has been determined.
-    if (!isUserLoading && auth) {
+    // Only run this logic once the auth service is available.
+    if (auth) {
       checkAndSignInAdmin();
     }
-  }, [isUserLoading, auth]);
+  }, [auth]);
 
 
   // Show loading state while checking for cookie or waiting for Firebase auth
-  if (isAdminSession === null || isUserLoading) {
+  if (isAdminSession === null || (isAdminSession && isUserLoading)) {
      return (
       <>
         <AdminHeader />
