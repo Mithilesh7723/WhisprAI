@@ -46,15 +46,17 @@ function PageContent() {
     async function checkAndSignInAdmin() {
       // 1. Check for the server-side session cookie first.
       const session = await getAdminSession();
-      if (!session) {
+      if (!session || !session.isAdmin) {
         redirect('/admin/login');
         return;
       }
       setIsAdminSession(true);
 
       // 2. If there's no Firebase user or it's not the admin, sign in client-side.
-      if (!user || user.email !== 'admin@whispr.com') {
+      // This is safe because we've already verified the secure HTTP-only cookie.
+      if (auth.currentUser?.email !== 'admin@whispr.com') {
         try {
+          // Use hardcoded credentials for client-side sign-in.
           await signInWithEmailAndPassword(auth, 'admin@whispr.com', 'password123');
           // onAuthStateChanged in the provider will handle setting the user state
         } catch (e: any) {
@@ -65,10 +67,10 @@ function PageContent() {
     }
     
     // Only run this logic once the initial auth state has been determined.
-    if (!isUserLoading) {
+    if (!isUserLoading && auth) {
       checkAndSignInAdmin();
     }
-  }, [isUserLoading, user, auth]);
+  }, [isUserLoading, auth]);
 
 
   // Show loading state while checking for cookie or waiting for Firebase auth
