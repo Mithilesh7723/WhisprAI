@@ -1,6 +1,7 @@
+
 'use client';
 
-import React, { useActionState } from 'react';
+import React, { useActionState, useEffect } from 'react';
 import { adminLogin } from '@/lib/actions';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
@@ -10,9 +11,11 @@ import { AppLogo } from '@/components/app-logo';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { AlertTriangle, Loader2 } from 'lucide-react';
 import { useFormStatus } from 'react-dom';
+import { useRouter } from 'next/navigation';
 
-const initialState: { error?: string } = {
+const initialState: { error?: string; success?: boolean; } = {
   error: undefined,
+  success: false,
 };
 
 function LoginButton() {
@@ -27,6 +30,14 @@ function LoginButton() {
 
 function AdminLoginContent() {
   const [state, formAction] = useActionState(adminLogin, initialState);
+  const router = useRouter();
+
+  useEffect(() => {
+    if (state.success) {
+      router.push('/admin/dashboard');
+    }
+  }, [state.success, router]);
+
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-secondary p-4">

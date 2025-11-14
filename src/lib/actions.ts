@@ -50,7 +50,7 @@ const ADMIN_SESSION_COOKIE = 'whispr-admin-session';
 export async function adminLogin(
   prevState: any,
   formData: FormData
-): Promise<{ error?: string; }> {
+): Promise<{ error?: string; success?: boolean; }> {
   const { auth, firestore } = initializeServerSideFirebase();
   const email = formData.get('email') as string;
   const password = formData.get('password') as string;
@@ -78,8 +78,10 @@ export async function adminLogin(
       maxAge: 60 * 60 * 24, // 1 day
       path: '/',
     });
-    // This redirect was missing from the success path.
-    redirect('/admin/dashboard');
+    
+    // On success, return a success flag instead of redirecting
+    return { success: true };
+
   } catch (error: any) {
     console.error('Admin login process failed:', error);
     if (error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential' || error.code === 'auth/wrong-password') {
@@ -87,8 +89,8 @@ export async function adminLogin(
     }
     return { error: error.message || 'An unexpected authentication error occurred.' };
   }
-
 }
+
 
 export async function getAdminSession() {
   const sessionCookie = cookies().get(ADMIN_SESSION_COOKIE);
@@ -105,8 +107,6 @@ export async function adminLogout() {
   redirect('/admin/login');
 }
 
-// These functions are kept for potential server-side use in other parts of the app,
-// but they are no longer used for the initial dashboard page load to prevent auth issues.
 export async function getAllPostsForAdmin(): Promise<Post[]> {
   const { firestore } = initializeServerSideFirebase();
   const postsRef = collection(firestore, 'posts');
