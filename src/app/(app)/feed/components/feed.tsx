@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useEffect, useRef, useState, useMemo } from 'react';
@@ -13,7 +12,7 @@ import { formatDistanceToNow } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
-import { collection, query, where, addDoc, getDocs, orderBy } from 'firebase/firestore';
+import { collection, query, where, addDoc, getDocs, orderBy, limit } from 'firebase/firestore';
 import { classifyWhisper } from '@/ai/flows/classify-whisper-messages';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
@@ -75,14 +74,15 @@ export default function Feed() {
   const firestore = useFirestore();
 
   const postsQuery = useMemoFirebase(() => {
-    if (!firestore || !user) return null;
+    if (!firestore) return null;
     // Query for posts that are not hidden and order them by creation date
     return query(
       collection(firestore, 'posts'),
       where('hidden', '==', false),
-      orderBy('createdAt', 'desc')
+      orderBy('createdAt', 'desc'),
+      limit(20) // Add a limit to satisfy security rules
     );
-  }, [firestore, user]);
+  }, [firestore]);
 
   const { data: posts, isLoading: isPostsLoading } = useCollection<Post>(postsQuery);
 

@@ -31,10 +31,9 @@ service cloud.firestore {
      * @path /posts/{postId}
      */
     match /posts/{postId} {
-      allow read: if resource == null || resource.data.hidden == false;
+      allow read: if (resource.data.hidden == false || isAdmin());
       allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid && request.resource.data.hidden == false;
-      allow update: if (isSignedIn() && isExistingOwner(resource.data.userId)) || isAdmin();
-      allow delete: if (isSignedIn() && isExistingOwner(resource.data.userId)) || isAdmin();
+      allow update, delete: if (isSignedIn() && isExistingOwner(resource.data.userId)) || isAdmin();
       allow write: if isAdmin();
     }
 
