@@ -96,11 +96,11 @@ export default function Home() {
                 Crafted at Horizon Flare Innovation Studio.
             </p>
             <div className="mt-4 flex justify-center gap-x-6 text-sm">
-                <a href="mailto:contact@horizonflare.studio" className="hover:text-foreground">
-                    contact@horizonflare.studio
+                <a href="mailto:support@horizonflare.studio" className="hover:text-foreground">
+                    support@horizonflare.in
                 </a>
-                <a href="https://horizonflare.studio" target="_blank" rel="noopener noreferrer" className="hover:text-foreground">
-                    horizonflare.studio
+                <a href="https://horizonflare.in" target="_blank" rel="noopener noreferrer" className="hover:text-foreground">
+                    www.horizonflare.in
                 </a>
             </div>
         </div>
