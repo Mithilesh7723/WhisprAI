@@ -27,16 +27,18 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Anyone signed in can read/list posts. Only the post owner can create, update, or delete them.
+     * @description Anyone signed in can read/list posts. Only the post owner can create, update, or delete them. Admins can read all posts.
      * @path /posts/{postId}
-     * @allow get, list: if isSignedIn();
+     * @allow get, list: if isSignedIn() || isAdmin();
      * @allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
-     * @allow update, delete: if isSignedIn() && isExistingOwner(resource.data.userId);
+     * @allow update: if isAdmin() || (isSignedIn() && isExistingOwner(resource.data.userId));
+     * @allow delete: if isAdmin() || (isSignedIn() && isExistingOwner(resource.data.userId));
      * @deny create: if !isSignedIn() || request.resource.data.userId != request.auth.uid;
-     * @deny update, delete: if !isSignedIn() || !isExistingOwner(resource.data.userId);
+     * @deny update, delete: if !isAdmin() && (!isSignedIn() || !isExistingOwner(resource.data.userId));
      * @principle Public read access, owner-only writes, verified identity.
      */
     match /posts/{postId} {
+      allow read, write: if isAdmin();
       allow get, list: if isSignedIn();
       allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
       allow update, delete: if isSignedIn() && isExistingOwner(resource.data.userId);
@@ -84,24 +86,11 @@ service cloud.firestore {
     /**
      * @description Only authenticated admins can create, update, or delete admin actions.
      * @path /adminActions/{adminActionId}
-     * @allow get: if isAdmin();
-     * @allow list: if isAdmin();
-     * @allow create: if isAdmin();
-     * @allow update: if isAdmin() && resource != null;
-     * @allow delete: if isAdmin() && resource != null;
-     * @deny get: if !isAdmin();
-     * @deny list: if !isAdmin();
-     * @deny create: if !isAdmin();
-     * @deny update: if !isAdmin() || resource == null;
-     * @deny delete: if !isAdmin() || resource == null;
+     * @allow get, list, create, update, delete: if isAdmin();
      * @principle Role-based access control, verified identity.
      */
     match /adminActions/{adminActionId} {
-      allow get: if isAdmin();
-      allow list: if isAdmin();
-      allow create: if isAdmin();
-      allow update: if isAdmin() && resource != null;
-      allow delete: if isAdmin() && resource != null;
+      allow read, write: if isAdmin();
     }
 
     function isSignedIn() {

@@ -13,6 +13,9 @@ type DashboardProps = {
 };
 
 export function Dashboard({ posts, actions }: DashboardProps) {
+  // The data is now passed directly from server components.
+  // No client-side fetching is needed.
+
   return (
     <Tabs defaultValue="whispers">
       <TabsList className="grid w-full grid-cols-2 sm:w-96">
