@@ -31,16 +31,11 @@ const nextConfig: NextConfig = {
       },
       {
         protocol: 'https',
-        hostname: 'explicit-amethyst-719oaao61c.edgeone.app',
+        hostname: 'drive.google.com',
         port: '',
         pathname: '/**',
       },
-      {
-        protocol: 'https',
-        hostname: 'content-salmon-9kdjzn7oyh.edgeone.app',
-        port: '',
-        pathname: '/**',
-      },
+  
     ],
   },
 };
