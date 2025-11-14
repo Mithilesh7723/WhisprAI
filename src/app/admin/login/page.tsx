@@ -3,7 +3,6 @@
 
 import React, { useEffect } from 'react';
 import { useFormStatus } from 'react-dom';
-import { useActionState } from 'react';
 import { adminLogin, finishAdminLoginAndRedirect } from '@/lib/actions';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
@@ -28,11 +27,18 @@ function LoginButton() {
 }
 
 function AdminLoginContent() {
-  const [state, formAction] = useActionState(adminLogin, { error: undefined });
+  const [error, setError] = React.useState<string | undefined>(undefined);
   const [isFinishingLogin, setIsFinishingLogin] = React.useState(false);
   const firestore = useFirestore();
   const { user, isUserLoading } = useUser();
   const { toast } = useToast();
+
+  const handleFormAction = async (formData: FormData) => {
+    const result = await adminLogin(formData);
+    if (result?.error) {
+        setError(result.error);
+    }
+  }
 
   useEffect(() => {
     async function finishLogin() {
@@ -107,7 +113,7 @@ function AdminLoginContent() {
         <AppLogo />
       </div>
       <Card className="w-full max-w-sm">
-        <form action={formAction}>
+        <form action={handleFormAction}>
           <CardHeader>
             <CardTitle>Admin Access</CardTitle>
             <CardDescription>
@@ -115,11 +121,11 @@ function AdminLoginContent() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {state?.error && (
+            {error && (
               <Alert variant="destructive">
                 <AlertTriangle className="h-4 w-4" />
                 <AlertTitle>Login Failed</AlertTitle>
-                <AlertDescription>{state.error}</AlertDescription>
+                <AlertDescription>{error}</AlertDescription>
               </Alert>
             )}
              <div className="space-y-2 rounded-md border bg-muted/50 p-3">
