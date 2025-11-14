@@ -5,6 +5,8 @@ import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { provideAISupportChat } from '@/ai/flows/provide-ai-support-chat';
 import { ChatMessage } from '@/lib/types';
+import { initializeServerSideFirebase } from '@/firebase/server-init';
+import { signInWithEmailAndPassword } from 'firebase/auth';
 
 // --- AI Action ---
 
@@ -38,28 +40,49 @@ export async function adminLogin(formData: FormData) {
   const email = formData.get('email') as string;
   const password = formData.get('password') as string;
 
-  // Hardcoded credentials check
-  const aT = 'admin@whispr.com';
-  const pT = 'password123';
+  // These are demo credentials. In a real app, use a secure auth provider.
+  const adminEmail = 'admin@whispr.com';
+  const adminPassword = 'password123';
+  
+  if (email !== adminEmail || password !== adminPassword) {
+      const errorMessage = 'Invalid email or password.';
+      redirect(`/admin/login?error=${encodeURIComponent(errorMessage)}`);
+  }
+  
+  try {
+    const { auth } = initializeServerSideFirebase();
+    // This doesn't actually sign the user in on the client,
+    // but it verifies the credentials against Firebase Auth.
+    // The client will need to sign in separately or we pass a token.
+    // For this demo, we'll assume the hardcoded password is the source of truth
+    // and the existence of the cookie is enough. The dashboard itself
+    // uses Firebase Auth on the client to verify rules.
+    const userCredential = await signInWithEmailAndPassword(auth, email, password);
 
-  if (email === aT && password === pT) {
-    const session = {
-      adminId: 'hardcoded_admin',
-      email: email,
-      loggedInAt: Date.now(),
-    };
+    if (userCredential.user) {
+        const session = {
+          adminId: userCredential.user.uid,
+          email: userCredential.user.email,
+          loggedInAt: Date.now(),
+        };
 
-    cookies().set(ADMIN_SESSION_COOKIE, JSON.stringify(session), {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      maxAge: 60 * 60 * 24, // 1 day
-      path: '/',
-    });
-    
-    redirect('/admin/dashboard');
-
-  } else {
-    const errorMessage = 'Invalid email or password.';
+        cookies().set(ADMIN_SESSION_COOKIE, JSON.stringify(session), {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === 'production',
+          maxAge: 60 * 60 * 24, // 1 day
+          path: '/',
+        });
+        
+        redirect('/admin/dashboard');
+    } else {
+        throw new Error('User authentication failed.');
+    }
+  } catch (error: any) {
+    console.error("Admin login failed:", error);
+    let errorMessage = 'An unknown error occurred during login.';
+    if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
+        errorMessage = 'Invalid email or password.';
+    }
     redirect(`/admin/login?error=${encodeURIComponent(errorMessage)}`);
   }
 }

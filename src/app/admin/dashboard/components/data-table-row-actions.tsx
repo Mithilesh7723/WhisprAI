@@ -20,7 +20,7 @@ import { MoreHorizontal, Bot, Eye, EyeOff, Tag } from 'lucide-react';
 import { generateAdminReply } from '@/ai/flows/generate-admin-reply';
 import { useToast } from '@/hooks/use-toast';
 import { useTransition } from 'react';
-import { useFirestore } from '@/firebase';
+import { useFirestore, useUser } from '@/firebase';
 import { doc, updateDoc, addDoc, collection } from 'firebase/firestore';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
@@ -37,11 +37,12 @@ export function DataTableRowActions<TData>({
   const { toast } = useToast();
   const [isPending, startTransition] = useTransition();
   const firestore = useFirestore();
+  const { user } = useUser();
   const router = useRouter();
 
   const handleUpdateLabel = (label: AILabel) => {
     startTransition(async () => {
-      if (!firestore) return;
+      if (!firestore || !user) return;
 
       const postRef = doc(firestore, 'posts', post.id);
       const actionsRef = collection(firestore, 'adminActions');
@@ -60,7 +61,7 @@ export function DataTableRowActions<TData>({
         });
 
         await addDoc(actionsRef, {
-          adminId: 'admin_client_action', // This will be set by security rules on the backend
+          adminId: user.uid,
           targetId: post.id,
           type: 're-label',
           timestamp: new Date().toISOString(),
@@ -81,7 +82,7 @@ export function DataTableRowActions<TData>({
           title: 'Success',
           description: `Post label updated to "${label}".`,
         });
-        router.refresh();
+        // No need to call router.refresh() as useCollection handles updates in real-time
       } catch (e: any) {
         if (!(e instanceof FirestorePermissionError)) {
             toast({
@@ -96,7 +97,7 @@ export function DataTableRowActions<TData>({
 
   const handleToggleVisibility = () => {
     startTransition(async () => {
-      if (!firestore) return;
+      if (!firestore || !user) return;
       const isHidden = post.hidden || false;
       const newVisibility = !isHidden;
       const postRef = doc(firestore, 'posts', post.id);
@@ -116,7 +117,7 @@ export function DataTableRowActions<TData>({
         });
 
         await addDoc(actionsRef, {
-          adminId: 'admin_client_action',
+          adminId: user.uid,
           targetId: post.id,
           type: newVisibility ? 'hide' : 'unhide',
           timestamp: new Date().toISOString(),
@@ -139,7 +140,6 @@ export function DataTableRowActions<TData>({
             newVisibility ? 'hidden' : 'made visible'
           }.`,
         });
-        router.refresh();
       } catch (e: any) {
          if (!(e instanceof FirestorePermissionError)) {
             toast({
@@ -154,7 +154,7 @@ export function DataTableRowActions<TData>({
 
   const handleGenerateReply = () => {
     startTransition(async () => {
-      if (!firestore) return;
+      if (!firestore || !user) return;
       try {
         const result = await generateAdminReply({ message: post.content });
         if (!result.reply) {
@@ -177,7 +177,7 @@ export function DataTableRowActions<TData>({
         });
 
         await addDoc(actionsRef, {
-          adminId: 'admin_client_action',
+          adminId: user.uid,
           targetId: post.id,
           type: 'reply',
           timestamp: new Date().toISOString(),
@@ -198,7 +198,6 @@ export function DataTableRowActions<TData>({
           title: 'Success',
           description: 'AI reply has been generated and attached.',
         });
-        router.refresh();
       } catch (e: any) {
         if (!(e instanceof FirestorePermissionError)) {
             toast({
@@ -214,7 +213,7 @@ export function DataTableRowActions<TData>({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" className="h-8 w-8 p-0" disabled={isPending}>
+        <Button variant="ghost" className="h-8 w-8 p-0" disabled={isPending || !user}>
           <span className="sr-only">Open menu</span>
           <MoreHorizontal className="h-4 w-4" />
         </Button>

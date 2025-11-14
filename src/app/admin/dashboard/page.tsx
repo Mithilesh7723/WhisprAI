@@ -10,6 +10,10 @@ import { FirebaseClientProvider, useUser } from '@/firebase';
 import { adminLogout, getAdminSession } from '@/lib/actions';
 import { useEffect, useState } from 'react';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useAuth } from '@/firebase';
+import { signInWithEmailAndPassword } from 'firebase/auth';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { AlertTriangle } from 'lucide-react';
 
 function AdminHeader() {
   return (
@@ -33,23 +37,42 @@ function AdminHeader() {
 }
 
 function PageContent() {
+  const auth = useAuth();
   const { user, isUserLoading } = useUser();
   const [isAdminSession, setIsAdminSession] = useState<boolean | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // We check the cookie on the client as a first-pass check.
-    // The real security is the Firestore rules which will deny reads if the user isn't an admin.
-    async function checkSession() {
+    async function checkAndSignInAdmin() {
+      // 1. Check for the server-side session cookie first.
       const session = await getAdminSession();
       if (!session) {
         redirect('/admin/login');
+        return;
       }
       setIsAdminSession(true);
-    }
-    checkSession();
-  }, []);
 
-  if (isUserLoading || isAdminSession === null) {
+      // 2. If there's no Firebase user or it's not the admin, sign in client-side.
+      if (!user || user.email !== 'admin@whispr.com') {
+        try {
+          await signInWithEmailAndPassword(auth, 'admin@whispr.com', 'password123');
+          // onAuthStateChanged in the provider will handle setting the user state
+        } catch (e: any) {
+            console.error("Admin client-side sign-in failed:", e);
+            setError("Your admin session is invalid. Please sign out and sign back in.");
+        }
+      }
+    }
+    
+    // Only run this logic once the initial auth state has been determined.
+    if (!isUserLoading) {
+      checkAndSignInAdmin();
+    }
+  }, [isUserLoading, user, auth]);
+
+
+  // Show loading state while checking for cookie or waiting for Firebase auth
+  if (isAdminSession === null || isUserLoading) {
      return (
       <>
         <AdminHeader />
@@ -57,13 +80,28 @@ function PageContent() {
            <div className="space-y-4">
               <div className="flex justify-between">
                 <Skeleton className="h-10 w-48" />
-                <Skeleton className="h-10 w-32" />
               </div>
+              <Skeleton className="h-10 w-96 mb-4" />
               <Skeleton className="h-96 w-full" />
            </div>
         </main>
       </>
     );
+  }
+
+  if (error) {
+    return (
+        <>
+        <AdminHeader />
+        <main className="container mx-auto p-4">
+             <Alert variant="destructive">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertTitle>Authentication Error</AlertTitle>
+                <AlertDescription>{error}</AlertDescription>
+            </Alert>
+        </main>
+      </>
+    )
   }
 
   // The user object is now available and we've confirmed a cookie session exists.
