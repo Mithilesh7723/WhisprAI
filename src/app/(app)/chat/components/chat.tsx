@@ -90,13 +90,13 @@ export default function Chat() {
         historyForAI,
         sessionId
       );
-
-      // The action itself will return a specific response on failure.
-      // If we get that response, the code below will fail and we will enter the catch block.
+      
+      // The action now returns a specific error message on failure.
+      // We check for that to know if we should proceed.
       if (res.response.startsWith("I'm having a little trouble")) {
           throw new Error("AI service connection failed.");
       }
-      
+
       const aiMessage: ChatMessage = {
           sender: 'ai',
           text: res.response,
@@ -128,9 +128,10 @@ export default function Chat() {
             requestResourceData: { escalated: res.escalate },
           })
          )
-         throw error;
+         // Don't re-throw here, as the global handler will catch it.
       });
 
+      // Update local state after successful Firestore operation
       setMessages(firestoreMessages);
        if (res.escalate) {
           setIsEscalated(true);
@@ -138,9 +139,12 @@ export default function Chat() {
 
     } catch (error) {
       console.error("Failed to send message or update chat:", error);
+      // Set error state to show the "Try Again" UI
       setErrorState({ messageId: userMessage.timestamp });
-      setMessages(updatedMessages);
-      setInput(messageContent);
+      // Keep the user's message in the chat list
+      setMessages(updatedMessages); 
+      // Restore the input so the user can retry
+      setInput(messageContent); 
     } finally {
         setIsLoading(false);
     }
