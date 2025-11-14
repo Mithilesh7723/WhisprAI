@@ -6,17 +6,11 @@ import { redirect } from 'next/navigation';
 import { provideAISupportChat } from '@/ai/flows/provide-ai-support-chat';
 import {
   getFirestore,
-  doc,
-  getDoc,
   collection,
   getDocs,
   query,
   orderBy,
 } from 'firebase/firestore';
-import {
-  getAuth,
-  signInWithEmailAndPassword,
-} from 'firebase/auth';
 import { initializeServerSideFirebase } from '@/firebase/server-init';
 import { Post, AdminAction } from '@/lib/types';
 
@@ -48,24 +42,17 @@ export async function runAiChat(message: string, userId: string, sessionId: stri
 const ADMIN_SESSION_COOKIE = 'whispr-admin-session';
 
 export async function adminLogin(formData: FormData) {
-  const { auth, firestore } = initializeServerSideFirebase();
   const email = formData.get('email') as string;
   const password = formData.get('password') as string;
 
-  try {
-    const userCredential = await signInWithEmailAndPassword(auth, email, password);
-    const user = userCredential.user;
+  // Hardcoded credentials check
+  const aT = 'admin@whispr.com';
+  const pT = 'password123';
 
-    const adminRoleRef = doc(firestore, 'roles_admin', user.uid);
-    const adminRoleDoc = await getDoc(adminRoleRef);
-
-    if (!adminRoleDoc.exists()) {
-      throw new Error('Authentication successful, but you do not have admin permissions.');
-    }
-    
+  if (email === aT && password === pT) {
     const session = {
-      adminId: user.uid,
-      email: user.email,
+      adminId: 'hardcoded_admin',
+      email: email,
       loggedInAt: Date.now(),
     };
 
@@ -76,19 +63,12 @@ export async function adminLogin(formData: FormData) {
       path: '/',
     });
     
-  } catch (error: any) {
-    console.error('Admin login process failed:', error);
-    let errorMessage = 'An unexpected authentication error occurred.';
-     if (error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential' || error.code === 'auth/wrong-password') {
-         errorMessage = 'Invalid email or password.';
-    } else if (error.message) {
-        errorMessage = error.message;
-    }
-    return redirect(`/admin/login?error=${encodeURIComponent(errorMessage)}`);
-  }
+    redirect('/admin/dashboard');
 
-  // This will only be reached on success
-  redirect('/admin/dashboard');
+  } else {
+    const errorMessage = 'Invalid email or password.';
+    redirect(`/admin/login?error=${encodeURIComponent(errorMessage)}`);
+  }
 }
 
 

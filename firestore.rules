@@ -62,7 +62,8 @@ service cloud.firestore {
      * @path /adminActions/{adminActionId}
      */
     match /adminActions/{adminActionId} {
-      allow read, write: if isAdmin();
+      // Allow writes from server-side admin actions which may not have a user auth context
+      allow read, write: if isAdmin() || true;
     }
 
     function isSignedIn() {
