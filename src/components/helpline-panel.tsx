@@ -4,19 +4,19 @@ import { Phone } from 'lucide-react';
 
 const helplines = [
   {
-    name: 'National Suicide Prevention Lifeline',
-    number: '988',
-    description: 'For free and confidential support.',
+    name: 'Vandrevala Foundation',
+    number: '9999666555',
+    description: 'A non-profit for mental health in India, offering free counseling.',
   },
   {
-    name: 'Crisis Text Line',
-    number: 'Text HOME to 741741',
-    description: 'For free, 24/7 crisis counseling.',
+    name: 'AASRA',
+    number: '9820466726',
+    description: '24/7 helpline for those who are distressed and depressed.',
   },
   {
-    name: 'The Trevor Project',
-    number: '1-866-488-7386',
-    description: 'For LGBTQ youth.',
+    name: 'iCALL',
+    number: '022-25521111',
+    description: 'A psychosocial helpline run by TISS, available Mon-Sat.',
   },
 ];
 
@@ -24,15 +24,14 @@ export function HelplinePanel() {
   return (
     <Card className="border-primary/20 bg-primary/5">
       <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-xl">
+        <CardTitle className="flex items-center gap-2 text-xl font-headline">
           <Phone />
           Need to talk?
         </CardTitle>
       </CardHeader>
       <CardContent>
         <p className="mb-4 text-muted-foreground">
-          If you're in crisis or need someone to talk to, these resources can
-          help. You are not alone.
+          If you're in crisis or need someone to talk to, these Indian helplines can provide support. You are not alone.
         </p>
         <div className="space-y-4">
           {helplines.map((helpline, index) => (

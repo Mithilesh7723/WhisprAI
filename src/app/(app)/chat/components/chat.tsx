@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useAnonymousId } from '@/lib/hooks/use-anonymous-id';
 import { sendChatMessage } from '@/lib/actions';
 import { Button } from '@/components/ui/button';
@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { ChatMessage } from '@/lib/types';
 import { cn } from '@/lib/utils';
-import { AlertTriangle, Send } from 'lucide-react';
+import { AlertTriangle, Send, Sparkles } from 'lucide-react';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { HelplinePanel } from '@/components/helpline-panel';
@@ -71,9 +71,10 @@ export default function Chat() {
       <ScrollArea className="flex-grow p-4" ref={scrollAreaRef}>
         <div className="mx-auto max-w-2xl space-y-6">
             {messages.length === 0 && (
-                <div className="text-center text-muted-foreground p-8 rounded-lg bg-card">
-                    <p>Welcome. What's on your mind?</p>
-                    <p className="text-xs mt-2">Remember, this is not medical advice. If you're in crisis, please use the resources provided.</p>
+                <div className="text-center text-muted-foreground p-8 rounded-lg bg-card border">
+                    <h2 className="font-headline text-lg text-foreground">Namaste.</h2>
+                    <p className="mt-2">How are you feeling today?</p>
+                    <p className="text-xs mt-4">This is a safe space to share. Remember, this is not medical advice. If you're in crisis, please use the resources provided.</p>
                 </div>
             )}
           {messages.map((message, index) => (
@@ -86,7 +87,9 @@ export default function Chat() {
             >
               {message.sender === 'ai' && (
                 <Avatar className="h-8 w-8">
-                  <AvatarFallback className="bg-primary text-primary-foreground">AI</AvatarFallback>
+                  <AvatarFallback className="bg-primary text-primary-foreground">
+                    <Sparkles className="h-4 w-4" />
+                  </AvatarFallback>
                 </Avatar>
               )}
               <div
@@ -104,7 +107,9 @@ export default function Chat() {
           {isLoading && (
              <div className="flex items-end gap-2 justify-start">
                 <Avatar className="h-8 w-8">
-                  <AvatarFallback className="bg-primary text-primary-foreground">AI</AvatarFallback>
+                   <AvatarFallback className="bg-primary text-primary-foreground">
+                    <Sparkles className="h-4 w-4" />
+                  </AvatarFallback>
                 </Avatar>
                  <div className="max-w-xs rounded-lg px-4 py-2 md:max-w-md bg-card border">
                     <div className="flex items-center space-x-1">
@@ -137,11 +142,12 @@ export default function Chat() {
           <Input
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder="Type your message..."
+            placeholder="Share your feelings..."
             disabled={isLoading}
             autoComplete="off"
+            className="rounded-full"
           />
-          <Button type="submit" size="icon" disabled={isLoading || !input.trim()}>
+          <Button type="submit" size="icon" disabled={isLoading || !input.trim()} className="rounded-full">
             <Send className="h-4 w-4" />
             <span className="sr-only">Send</span>
           </Button>

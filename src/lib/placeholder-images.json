@@ -2,9 +2,9 @@
   "placeholderImages": [
     {
       "id": "hero",
-      "description": "A calm, serene landscape with soft colors.",
-      "imageUrl": "https://images.unsplash.com/photo-1721886561322-854c44c2535a?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwyfHxzZXJlbmUlMjBsYW5kc2NhcGV8ZW58MHx8fHwxNzYzMDQwNDg3fDA&ixlib=rb-4.1.0&q=80&w=1080",
-      "imageHint": "serene landscape"
+      "description": "A calm, serene image of a person meditating near a tranquil lake in India.",
+      "imageUrl": "https://images.unsplash.com/photo-1601758123924-DE55d07a9a14?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw0fHx5b2dhJTIwbGFrZXxlbnwwfHx8fDE3MjMwNDA3NDZ8MA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "yoga lake"
     }
   ]
 }
