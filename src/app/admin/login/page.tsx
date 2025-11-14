@@ -2,7 +2,6 @@
 'use client';
 
 import React, { useState, useEffect, useActionState } from 'react';
-import { useFormStatus } from 'react-dom';
 import { adminLogin, finishAdminLoginAndRedirect } from '@/lib/actions';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
@@ -20,16 +19,6 @@ import { FirestorePermissionError } from '@/firebase/errors';
 const initialState: { error?: string; } = {
   error: undefined,
 };
-
-function LoginButton() {
-  const { pending } = useFormStatus();
-
-  return (
-    <Button type="submit" className="w-full" disabled={pending}>
-      {pending ? 'Signing In...' : 'Sign In'}
-    </Button>
-  );
-}
 
 function AdminLoginContent() {
   const [formState, formAction] = useActionState(adminLogin, initialState);
@@ -93,8 +82,6 @@ function AdminLoginContent() {
   }, [authUser, isUserLoading, firestore, loginFinalized]);
 
   const displayError = formState.error || clientError;
-  const isLoading = isFinishingLogin || useFormStatus().pending;
-
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-secondary p-4">
@@ -139,8 +126,8 @@ function AdminLoginContent() {
             </div>
           </CardContent>
           <CardFooter>
-             <Button type="submit" className="w-full" disabled={isLoading}>
-                {isLoading ? 'Finalizing...' : 'Sign In'}
+             <Button type="submit" className="w-full" disabled={isFinishingLogin}>
+                {isFinishingLogin ? 'Finalizing...' : 'Sign In'}
             </Button>
           </CardFooter>
         </form>
