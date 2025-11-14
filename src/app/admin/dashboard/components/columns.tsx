@@ -1,3 +1,4 @@
+
 'use client';
 
 import { ColumnDef } from '@tanstack/react-table';
@@ -59,7 +60,7 @@ export const columns: ColumnDef<Post>[] = [
             'w-24 justify-center capitalize',
             label === 'stressed' && 'bg-warning text-warning-foreground',
             label === 'normal' &&
-              'bg-info/20 text-info-foreground border-info/30'
+              'border-green-500/30 bg-green-500/20 text-green-700'
           )}
         >
           {label.replace('_', ' ')}

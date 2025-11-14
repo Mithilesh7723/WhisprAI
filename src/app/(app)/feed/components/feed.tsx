@@ -35,7 +35,7 @@ function FeedItem({ post }: { post: Post }) {
             }
             className={cn(
               post.aiLabel === 'stressed' && 'bg-warning text-warning-foreground',
-              post.aiLabel === 'normal' && 'bg-info/20 text-info-foreground border-info/30',
+              post.aiLabel === 'normal' && 'border-green-500/30 bg-green-500/20 text-green-700',
             )}
           >
             {post.aiLabel.replace('_', ' ')}
