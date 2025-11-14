@@ -2,7 +2,7 @@
 'use client';
 
 import React from 'react';
-import { useFormState, useFormStatus } from 'react-dom';
+import { useActionState, useFormStatus } from 'react';
 import { adminLogin } from '@/lib/actions';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
@@ -15,7 +15,6 @@ import { FirebaseClientProvider } from '@/firebase';
 
 const initialState = {
   error: undefined,
-  success: undefined,
 };
 
 function LoginButton() {
@@ -29,7 +28,7 @@ function LoginButton() {
 }
 
 function AdminLoginContent() {
-  const [state, formAction] = useFormState(adminLogin, initialState);
+  const [state, formAction] = useActionState(adminLogin, initialState);
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-secondary p-4">
