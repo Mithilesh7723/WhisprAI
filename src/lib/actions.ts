@@ -58,7 +58,7 @@ export async function getPosts(filter?: AILabel) {
   return posts;
 }
 
-export async function postWhisper(formData: FormData) {
+export async function postWhisper(prevState: { error?: string; success?: boolean } | undefined, formData: FormData) {
   const content = formData.get('content') as string;
   const userId = formData.get('userId') as string;
 
@@ -119,7 +119,7 @@ export async function sendChatMessage(
 
 const ADMIN_SESSION_COOKIE = 'whispr-admin-session';
 
-export async function adminLogin(formData: FormData) {
+export async function adminLogin(prevState: { error?: string } | undefined, formData: FormData) {
   const email = formData.get('email') as string;
   const password = formData.get('password') as string;
 

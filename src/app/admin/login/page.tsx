@@ -1,6 +1,6 @@
 'use client';
 
-import { useFormState, useFormStatus } from 'react-dom';
+import { useActionState, useFormStatus } from 'react-dom';
 import { adminLogin } from '@/lib/actions';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
@@ -20,7 +20,7 @@ function LoginButton() {
 }
 
 export default function AdminLoginPage() {
-  const [state, formAction] = useFormState(adminLogin, { error: undefined });
+  const [state, formAction] = useActionState(adminLogin, { error: undefined });
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-secondary p-4">
