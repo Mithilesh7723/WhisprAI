@@ -70,19 +70,18 @@ export async function runAiChat(message: string, userId: string, sessionId: stri
 const ADMIN_SESSION_COOKIE = 'whispr-admin-session';
 
 export async function adminLogin(
-  prevState: { error?: string },
   formData: FormData
-): Promise<{ error?: string; success?: boolean; pending?: boolean; }> {
+): Promise<{ error?: string; success?: boolean; }> {
   const auth = await getFirebaseAuth();
   const email = formData.get('email') as string;
   const password = formData.get('password') as string;
 
   try {
     const userCredential = await signInWithEmailAndPassword(auth, email, password);
-    const session = { 
-        adminId: userCredential.user.uid, 
+    const session = {
+        adminId: userCredential.user.uid,
         email: userCredential.user.email,
-        loggedInAt: Date.now() 
+        loggedInAt: Date.now()
     };
 
     cookies().set(ADMIN_SESSION_COOKIE, JSON.stringify(session), {
@@ -91,16 +90,16 @@ export async function adminLogin(
       maxAge: 60 * 60 * 24, // 1 day
       path: '/',
     });
-    return { success: true, pending: true };
+    return { success: true };
 
   } catch (error: any) {
     if (error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential') {
         try {
             const newUserCredential = await createUserWithEmailAndPassword(auth, email, password);
-            const session = { 
-                adminId: newUserCredential.user.uid, 
+            const session = {
+                adminId: newUserCredential.user.uid,
                 email: newUserCredential.user.email,
-                loggedInAt: Date.now() 
+                loggedInAt: Date.now()
             };
             cookies().set(ADMIN_SESSION_COOKIE, JSON.stringify(session), {
               httpOnly: true,
@@ -108,7 +107,7 @@ export async function adminLogin(
               maxAge: 60 * 60 * 24, // 1 day
               path: '/',
             });
-            return { success: true, pending: true };
+            return { success: true };
         } catch (creationError: any) {
             return { error: 'Failed to create admin user.' };
         }
