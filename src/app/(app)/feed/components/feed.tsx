@@ -13,7 +13,7 @@ import { formatDistanceToNow } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
-import { collection, query, where, addDoc } from 'firebase/firestore';
+import { collection, query, where, addDoc, getDocs } from 'firebase/firestore';
 import { classifyWhisper } from '@/ai/flows/classify-whisper-messages';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
@@ -67,14 +67,11 @@ export default function Feed() {
 
   const postsQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
-    // This query now relies on client-side sorting.
-    // It has been simplified to not order by createdAt to avoid needing a composite index.
     return query(collection(firestore, 'posts'));
   }, [firestore, user]);
 
   const { data: rawPosts, isLoading: isPostsLoading } = useCollection<Post>(postsQuery);
 
-  // Perform client-side sorting.
   const posts = useMemo(() => {
     if (!rawPosts) return [];
     return rawPosts.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
@@ -94,9 +91,21 @@ export default function Feed() {
     const originalContent = content;
 
     try {
-      // First, submit the whisper to Firestore
-      const classification = await classifyWhisper({ content: originalContent });
       const postsCollection = collection(firestore, 'posts');
+
+      // Check for duplicate posts by the same user
+      const duplicateQuery = query(postsCollection, where('userId', '==', user.uid), where('content', '==', originalContent));
+      const duplicateSnapshot = await getDocs(duplicateQuery);
+      if (!duplicateSnapshot.empty) {
+        toast({
+          title: 'Already Shared',
+          description: "You've already shared this whisper.",
+        });
+        setIsSubmitting(false);
+        return;
+      }
+      
+      const classification = await classifyWhisper({ content: originalContent });
 
       await addDoc(postsCollection, {
         userId: user.uid,
@@ -114,11 +123,9 @@ export default function Feed() {
             requestResourceData: { content: '... sensitive content ...' },
           })
          );
-         // Re-throw to be caught by the outer try-catch
          throw error;
       });
 
-      // If submission is successful, show success and clear the form
       toast({
         title: 'Success',
         description: "Your whisper has been shared.",
@@ -128,7 +135,6 @@ export default function Feed() {
         textareaRef.current.value = '';
       }
 
-      // Now, separately try to generate and show AI feedback
       try {
         const feedbackResult = await generateAdminReply({ message: originalContent });
         if (feedbackResult.reply) {
@@ -136,7 +142,6 @@ export default function Feed() {
         }
       } catch (feedbackError) {
         console.error('AI feedback generation failed:', feedbackError);
-        // This is a non-critical error, so just inform the user without a destructive toast.
         toast({
             title: 'AI Feedback',
             description: 'Could not generate AI feedback at this time. Please try again later.'
