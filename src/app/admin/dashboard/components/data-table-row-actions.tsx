@@ -42,11 +42,12 @@ export function DataTableRowActions<TData>({
   const handleUpdateLabel = (label: AILabel) => {
     startTransition(async () => {
       if (!firestore) return;
-      try {
-        const postRef = doc(firestore, 'posts', post.id);
-        const actionsRef = collection(firestore, 'adminActions');
 
-        updateDoc(postRef, { aiLabel: label }).catch((error) => {
+      const postRef = doc(firestore, 'posts', post.id);
+      const actionsRef = collection(firestore, 'adminActions');
+
+      try {
+        await updateDoc(postRef, { aiLabel: label }).catch((error) => {
           errorEmitter.emit(
             'permission-error',
             new FirestorePermissionError({
@@ -58,10 +59,8 @@ export function DataTableRowActions<TData>({
           throw error;
         });
 
-        // We can't get adminId on the client securely, so we'll log it as 'admin_client_action'
-        // Security rules should enforce that only admins can write to this collection.
-        addDoc(actionsRef, {
-          adminId: 'admin_client_action',
+        await addDoc(actionsRef, {
+          adminId: 'admin_client_action', // This will be set by security rules on the backend
           targetId: post.id,
           type: 're-label',
           timestamp: new Date().toISOString(),
@@ -84,7 +83,6 @@ export function DataTableRowActions<TData>({
         });
         router.refresh();
       } catch (e: any) {
-        // The permission error will be thrown globally, but we catch other errors here
         if (!(e instanceof FirestorePermissionError)) {
             toast({
                 variant: 'destructive',
@@ -99,13 +97,13 @@ export function DataTableRowActions<TData>({
   const handleToggleVisibility = () => {
     startTransition(async () => {
       if (!firestore) return;
-      try {
-        const isHidden = post.hidden || false;
-        const newVisibility = !isHidden;
-        const postRef = doc(firestore, 'posts', post.id);
-        const actionsRef = collection(firestore, 'adminActions');
+      const isHidden = post.hidden || false;
+      const newVisibility = !isHidden;
+      const postRef = doc(firestore, 'posts', post.id);
+      const actionsRef = collection(firestore, 'adminActions');
 
-        updateDoc(postRef, { hidden: newVisibility }).catch((error) => {
+      try {
+        await updateDoc(postRef, { hidden: newVisibility }).catch((error) => {
           errorEmitter.emit(
             'permission-error',
             new FirestorePermissionError({
@@ -117,7 +115,7 @@ export function DataTableRowActions<TData>({
           throw error;
         });
 
-        addDoc(actionsRef, {
+        await addDoc(actionsRef, {
           adminId: 'admin_client_action',
           targetId: post.id,
           type: newVisibility ? 'hide' : 'unhide',
@@ -158,7 +156,6 @@ export function DataTableRowActions<TData>({
     startTransition(async () => {
       if (!firestore) return;
       try {
-        // Directly call the AI flow from the client
         const result = await generateAdminReply({ message: post.content });
         if (!result.reply) {
           throw new Error('Reply was empty.');
@@ -167,19 +164,19 @@ export function DataTableRowActions<TData>({
         const postRef = doc(firestore, 'posts', post.id);
         const actionsRef = collection(firestore, 'adminActions');
 
-        updateDoc(postRef, { reply: result.reply }).catch((error) => {
+        await updateDoc(postRef, { reply: result.reply }).catch((error) => {
           errorEmitter.emit(
             'permission-error',
             new FirestorePermissionError({
               path: postRef.path,
               operation: 'update',
-              requestResourceData: { reply: result.reply },
+              requestResourceData: { reply: '...' }, // Don't log full reply
             })
           );
           throw error;
         });
 
-        addDoc(actionsRef, {
+        await addDoc(actionsRef, {
           adminId: 'admin_client_action',
           targetId: post.id,
           type: 'reply',
@@ -205,9 +202,9 @@ export function DataTableRowActions<TData>({
       } catch (e: any) {
         if (!(e instanceof FirestorePermissionError)) {
             toast({
-            variant: 'destructive',
-            title: 'Action Failed',
-            description: e.message || 'Failed to generate AI reply.',
+              variant: 'destructive',
+              title: 'Action Failed',
+              description: e.message || 'Failed to generate AI reply.',
             });
         }
       }
