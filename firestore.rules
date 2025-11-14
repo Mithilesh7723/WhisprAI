@@ -39,7 +39,7 @@ service cloud.firestore {
      * @principle Public read access, owner-only writes, verified identity.
      */
     match /posts/{postId} {
-      allow read: if true;
+      allow get, list: if true;
       allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
       allow update: if isSignedIn() && isExistingOwner(resource.data.userId);
       allow delete: if isSignedIn() && isExistingOwner(resource.data.userId);
