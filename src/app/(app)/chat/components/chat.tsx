@@ -92,7 +92,7 @@ export default function Chat() {
       );
 
       // The action itself will return a specific response on failure.
-      // If we get that response, we throw to trigger the catch block.
+      // If we get that response, the code below will fail and we will enter the catch block.
       if (res.response.startsWith("I'm having a little trouble")) {
           throw new Error("AI service connection failed.");
       }
@@ -114,7 +114,7 @@ export default function Chat() {
       
       const firestoreMessages = [...historyForAI, userMessage, aiMessage];
 
-      await setDoc(chatDocRef, {
+      setDoc(chatDocRef, {
           userId: user.uid,
           messages: firestoreMessages,
           escalated: res.escalate || isEscalated,
