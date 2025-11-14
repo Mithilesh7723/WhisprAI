@@ -7,7 +7,7 @@ import { AppLogo } from '@/components/app-logo';
 import { Button } from '@/components/ui/button';
 import { LogOut } from 'lucide-react';
 import { FirebaseClientProvider, useUser, useAuth } from '@/firebase';
-import { adminLogout, getAdminSession } from '@/lib/actions';
+import { adminLogout } from '@/lib/actions';
 import { useEffect, useState } from 'react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { signInWithEmailAndPassword } from 'firebase/auth';
@@ -36,43 +36,35 @@ function AdminHeader() {
 }
 
 function PageContent() {
-  const router = useRouter();
   const auth = useAuth();
-  const { user, isUserLoading } = useUser();
-  const [isCheckingSession, setIsCheckingSession] = useState(true);
-  const [isAdmin, setIsAdmin] = useState(false);
+  const { user, isUserLoading: isFirebaseUserLoading } = useUser();
+  const [isSigningIn, setIsSigningIn] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    async function checkAndSignInAdmin() {
-      setIsCheckingSession(true);
-      try {
-        const session = await getAdminSession();
-        if (!session?.isAdmin) {
-          router.replace('/admin/login');
-          return;
-        }
-
-        // Now that we have a server session, sign in to Firebase client-side
-        if (auth && (!auth.currentUser || auth.currentUser.email !== 'admin@whispr.com')) {
+    async function signInAdmin() {
+      if (auth && (!auth.currentUser || auth.currentUser.email !== 'admin@whispr.com')) {
+        try {
           await signInWithEmailAndPassword(auth, 'admin@whispr.com', 'password123');
+        } catch (e: any) {
+          console.error("Admin sign-in failed:", e);
+          setError("Could not authenticate with Firebase to fetch data. Please check your connection and configuration.");
+        } finally {
+          setIsSigningIn(false);
         }
-        setIsAdmin(true);
-      } catch (e: any) {
-        console.error("Admin auth check failed:", e);
-        setError("Your session is invalid. Please sign out and sign back in.");
-        setIsAdmin(false);
-      } finally {
-        setIsCheckingSession(false);
+      } else {
+        setIsSigningIn(false);
       }
     }
 
+    // Only run sign-in if the auth service is available.
     if (auth) {
-      checkAndSignInAdmin();
+      signInAdmin();
     }
-  }, [auth, router]);
+  }, [auth]);
 
-  const isLoading = isCheckingSession || isUserLoading;
+  // Overall loading state depends on the initial Firebase user check and our specific admin sign-in attempt.
+  const isLoading = isFirebaseUserLoading || isSigningIn;
 
   if (isLoading) {
     return (
@@ -106,7 +98,8 @@ function PageContent() {
     );
   }
 
-  if (isAdmin && user) {
+  // The user object from useUser() is the source of truth for being logged into Firebase.
+  if (user) {
     return (
       <>
         <AdminHeader />
@@ -117,8 +110,19 @@ function PageContent() {
     );
   }
 
-  // Fallback case, should be handled by the redirect in useEffect
-  return null;
+  // Fallback in case of an unexpected state.
+  return (
+    <>
+      <AdminHeader />
+      <main className="container mx-auto p-4">
+        <Alert variant="destructive">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertTitle>Not Authenticated</AlertTitle>
+            <AlertDescription>Could not sign in to view the dashboard. Please try logging out and back in.</AlertDescription>
+          </Alert>
+      </main>
+    </>
+  );
 }
 
 

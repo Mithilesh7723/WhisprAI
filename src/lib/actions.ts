@@ -2,13 +2,9 @@
 'use server';
 
 import 'dotenv/config';
-import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { provideAISupportChat } from '@/ai/flows/provide-ai-support-chat';
 import { ChatMessage } from '@/lib/types';
-import { getAuth, signInWithEmailAndPassword } from 'firebase/auth';
-import { initializeApp, getApps, getApp } from 'firebase/app';
-import { firebaseConfig } from '@/firebase/config';
 
 // --- AI Action ---
 
@@ -36,8 +32,6 @@ export async function runAiChat(message: string, userId: string, history: ChatMe
 
 // --- ADMIN ACTIONS ---
 
-const ADMIN_SESSION_COOKIE = 'whispr-admin-session';
-
 export async function adminLogin(formData: FormData) {
   const email = formData.get('email') as string;
   const password = formData.get('password') as string;
@@ -51,37 +45,13 @@ export async function adminLogin(formData: FormData) {
       return redirect(`/admin/login?error=${encodeURIComponent(errorMessage)}`);
   }
   
-  // This is a simplified, secure session for a demo.
-  // We are NOT doing server-to-server Firebase auth here, as it was causing issues.
-  // The client will sign in to Firebase after the page loads.
-  const session = {
-    isAdmin: true,
-    email: adminEmail,
-    loggedInAt: Date.now(),
-  };
-
-  cookies().set(ADMIN_SESSION_COOKIE, JSON.stringify(session), {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    maxAge: 60 * 60 * 24, // 1 day
-    path: '/',
-  });
-  
+  // On successful credential check, just redirect to the dashboard.
+  // The dashboard will handle its own client-side Firebase login.
   return redirect('/admin/dashboard');
 }
 
-
-export async function getAdminSession() {
-  const sessionCookie = cookies().get(ADMIN_SESSION_COOKIE);
-  if (!sessionCookie) return null;
-  try {
-    return JSON.parse(sessionCookie.value);
-  } catch {
-    return null;
-  }
-}
-
 export async function adminLogout() {
-  cookies().delete(ADMIN_SESSION_COOKIE);
+  // Since there is no server session, just redirect to login.
+  // Client-side state will be cleared on page reload.
   redirect('/admin/login');
 }
