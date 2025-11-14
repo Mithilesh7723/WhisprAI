@@ -1,20 +1,24 @@
-
 'use client';
 
-import React, { useActionState } from 'react';
-import { useFormStatus } from 'react-dom';
-import { adminLogin } from '@/lib/actions';
+import React, { useEffect, useState } from 'react';
+import { useFormState, useFormStatus } from 'react-dom';
+import { adminLogin, finishAdminLoginAndRedirect } from '@/lib/actions';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { AppLogo } from '@/components/app-logo';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { AlertTriangle } from 'lucide-react';
-import { FirebaseClientProvider } from '@/firebase';
+import { AlertTriangle, Loader2 } from 'lucide-react';
+import { FirebaseClientProvider, useUser, useFirestore } from '@/firebase';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError } from '@/firebase/errors';
+import { User } from 'firebase/auth';
 
-const initialState = {
+const initialState: { error?: string; user?: User } = {
   error: undefined,
+  user: undefined,
 };
 
 function LoginButton() {
@@ -28,7 +32,75 @@ function LoginButton() {
 }
 
 function AdminLoginContent() {
-  const [state, formAction] = useActionState(adminLogin, initialState);
+  const [formState, formAction] = useFormState(adminLogin, initialState);
+  const { user: authUser, isUserLoading } = useUser();
+  const firestore = useFirestore();
+  const [isFinishingLogin, setIsFinishingLogin] = useState(false);
+  const [clientError, setClientError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const finishLogin = async (userToFinalize: User) => {
+      if (!firestore || !userToFinalize.email) {
+        setClientError('An unexpected client-side error occurred. Firestore or user email is missing.');
+        setIsFinishingLogin(false);
+        return;
+      }
+      setIsFinishingLogin(true);
+      setClientError(null);
+
+      const adminRoleRef = doc(firestore, 'roles_admin', userToFinalize.uid);
+
+      try {
+        const adminRoleDoc = await getDoc(adminRoleRef).catch((error) => {
+          errorEmitter.emit(
+            'permission-error',
+            new FirestorePermissionError({
+              path: adminRoleRef.path,
+              operation: 'get',
+            })
+          );
+          throw error; // Re-throw to be caught by the outer try-catch
+        });
+
+        if (!adminRoleDoc.exists()) {
+          await setDoc(adminRoleRef, {
+            email: userToFinalize.email,
+            role: 'superadmin',
+            createdAt: new Date().toISOString(),
+          }).catch((error) => {
+            errorEmitter.emit(
+              'permission-error',
+              new FirestorePermissionError({
+                path: adminRoleRef.path,
+                operation: 'create',
+                requestResourceData: { role: 'superadmin' },
+              })
+            );
+            throw error; // Re-throw
+          });
+        }
+        
+        // If we get here, all DB operations were successful.
+        // Finalize server session and redirect.
+        await finishAdminLoginAndRedirect(userToFinalize.uid, userToFinalize.email);
+
+      } catch (error: any) {
+        console.error("Error during login finalization:", error);
+        if (!(error instanceof FirestorePermissionError)) {
+          setClientError(error.message || 'Failed to check or create admin role.');
+        }
+        // If it is a FirestorePermissionError, the global listener will handle it.
+        setIsFinishingLogin(false);
+      }
+    };
+    
+    // This effect runs when the auth state changes on the client
+    if (!isUserLoading && authUser && !authUser.isAnonymous) {
+      finishLogin(authUser);
+    }
+  }, [authUser, isUserLoading, firestore]);
+
+  const displayError = formState?.error || clientError;
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-secondary p-4">
@@ -36,46 +108,53 @@ function AdminLoginContent() {
         <AppLogo />
       </div>
       <Card className="w-full max-w-sm">
-        <form action={formAction}>
-          <CardHeader>
-            <CardTitle>Admin Access</CardTitle>
-            <CardDescription>
-              Enter your credentials to access the dashboard.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {state?.error && (
-              <Alert variant="destructive">
-                <AlertTriangle className="h-4 w-4" />
-                <AlertTitle>Login Failed</AlertTitle>
-                <AlertDescription>{state.error}</AlertDescription>
-              </Alert>
-            )}
-             <div className="space-y-2 rounded-md border bg-muted/50 p-3">
-                <p className="text-sm text-muted-foreground">Demo credentials are pre-filled:</p>
-                <p className="text-sm font-mono">Email: admin@whispr.com</p>
-                <p className="text-sm font-mono">Password: password123</p>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                name="email"
-                type="email"
-                placeholder="admin@example.com"
-                required
-                defaultValue="admin@whispr.com"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
-              <Input id="password" name="password" type="password" required defaultValue="password123"/>
-            </div>
-          </CardContent>
-          <CardFooter>
-            <LoginButton />
-          </CardFooter>
-        </form>
+        {isFinishingLogin ? (
+          <div className="flex h-64 flex-col items-center justify-center gap-4">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            <p className="text-muted-foreground">Finalizing login, please wait...</p>
+          </div>
+        ) : (
+          <form action={formAction}>
+            <CardHeader>
+              <CardTitle>Admin Access</CardTitle>
+              <CardDescription>
+                Enter your credentials to access the dashboard.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {displayError && (
+                <Alert variant="destructive">
+                  <AlertTriangle className="h-4 w-4" />
+                  <AlertTitle>Login Failed</AlertTitle>
+                  <AlertDescription>{displayError}</AlertDescription>
+                </Alert>
+              )}
+               <div className="space-y-2 rounded-md border bg-muted/50 p-3">
+                  <p className="text-sm text-muted-foreground">Demo credentials are pre-filled:</p>
+                  <p className="text-sm font-mono">Email: admin@whispr.com</p>
+                  <p className="text-sm font-mono">Password: password123</p>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="email">Email</Label>
+                <Input
+                  id="email"
+                  name="email"
+                  type="email"
+                  placeholder="admin@example.com"
+                  required
+                  defaultValue="admin@whispr.com"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="password">Password</Label>
+                <Input id="password" name="password" type="password" required defaultValue="password123"/>
+              </div>
+            </CardContent>
+            <CardFooter>
+              <LoginButton />
+            </CardFooter>
+          </form>
+        )}
       </Card>
     </div>
   );
