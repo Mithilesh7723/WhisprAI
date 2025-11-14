@@ -94,6 +94,7 @@ export default function Feed() {
     const originalContent = content;
 
     try {
+      // First, submit the whisper to Firestore
       const classification = await classifyWhisper({ content: originalContent });
       const postsCollection = collection(firestore, 'posts');
 
@@ -112,11 +113,12 @@ export default function Feed() {
             operation: 'create',
             requestResourceData: { content: '... sensitive content ...' },
           })
-         )
+         );
          // Re-throw to be caught by the outer try-catch
          throw error;
       });
 
+      // If submission is successful, show success and clear the form
       toast({
         title: 'Success',
         description: "Your whisper has been shared.",
@@ -126,18 +128,27 @@ export default function Feed() {
         textareaRef.current.value = '';
       }
 
-      // After successful submission, generate and show AI feedback
-      const feedbackResult = await generateAdminReply({ message: originalContent });
-      if (feedbackResult.reply) {
-        setAiFeedback(feedbackResult.reply);
+      // Now, separately try to generate and show AI feedback
+      try {
+        const feedbackResult = await generateAdminReply({ message: originalContent });
+        if (feedbackResult.reply) {
+          setAiFeedback(feedbackResult.reply);
+        }
+      } catch (feedbackError) {
+        console.error('AI feedback generation failed:', feedbackError);
+        // This is a non-critical error, so just inform the user without a destructive toast.
+        toast({
+            title: 'AI Feedback',
+            description: 'Could not generate AI feedback at this time. Please try again later.'
+        });
       }
 
     } catch (error) {
-       console.error('Client-side postWhisper failed:', error);
+       console.error('Whisper submission failed:', error);
        toast({
         variant: 'destructive',
         title: 'Error',
-        description: 'Could not process your whisper. Please try again.',
+        description: 'Could not post your whisper. Please try again.',
       });
     } finally {
         setIsSubmitting(false);
