@@ -1,9 +1,8 @@
 
 'use client';
 
-import React, { useEffect, useRef, useActionState, useMemo } from 'react';
+import React, { useEffect, useRef, useState, useMemo } from 'react';
 import { Post } from '@/lib/types';
-import { postWhisper } from '@/lib/actions';
 import { useAnonymousSignIn } from '@/lib/hooks/use-anonymous-sign-in';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
@@ -11,20 +10,13 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { formatDistanceToNow } from 'date-fns';
-import { useFormStatus } from 'react-dom';
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
-import { collection, query, where, orderBy } from 'firebase/firestore';
-
-function PostForm() {
-  const { pending } = useFormStatus();
-  return (
-    <Button type="submit" disabled={pending} className="mt-2">
-      {pending ? 'Whispering...' : 'Whisper'}
-    </Button>
-  );
-}
+import { collection, query, where, addDoc } from 'firebase/firestore';
+import { classifyWhisper } from '@/ai/flows/classify-whisper-messages';
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError } from '@/firebase/errors';
 
 function FeedItem({ post }: { post: Post }) {
   return (
@@ -57,59 +49,104 @@ function FeedItem({ post }: { post: Post }) {
 export default function Feed() {
   const { user, isLoading: isAuthLoading } = useAnonymousSignIn();
   const { toast } = useToast();
-  const formRef = useRef<HTMLFormElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const [content, setContent] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
   
   const firestore = useFirestore();
 
   const postsQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
+    // This query is now simpler and relies on client-side sorting.
     return query(collection(firestore, 'posts'), where('hidden', '==', false));
   }, [firestore, user]);
 
   const { data: rawPosts, isLoading: isPostsLoading } = useCollection<Post>(postsQuery);
 
+  // Perform client-side sorting.
   const posts = useMemo(() => {
     if (!rawPosts) return [];
     return rawPosts.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   }, [rawPosts]);
 
-  const [formState, formAction] = useActionState(postWhisper, { error: undefined, success: undefined });
-
-  useEffect(() => {
-    if (formState.error) {
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!content || content.trim().length < 5 || !user || !firestore) {
       toast({
         variant: 'destructive',
         title: 'Error',
-        description: formState.error,
+        description: 'Whisper must be at least 5 characters long.',
       });
+      return;
     }
-    if(formState.success){
-        formRef.current?.reset();
-        toast({
-          title: 'Success',
-          description: "Your whisper has been shared.",
-        });
+    setIsSubmitting(true);
+
+    try {
+      const classification = await classifyWhisper({ content });
+      const postsCollection = collection(firestore, 'posts');
+
+      await addDoc(postsCollection, {
+        userId: user.uid,
+        content,
+        createdAt: new Date().toISOString(),
+        aiLabel: classification.aiLabel,
+        aiConfidence: classification.aiConfidence,
+        hidden: false,
+      }).catch(error => {
+         errorEmitter.emit(
+          'permission-error',
+          new FirestorePermissionError({
+            path: postsCollection.path,
+            operation: 'create',
+            requestResourceData: { content: '... sensitive content ...' },
+          })
+         )
+         // Re-throw to be caught by the outer try-catch
+         throw error;
+      });
+
+      toast({
+        title: 'Success',
+        description: "Your whisper has been shared.",
+      });
+      setContent('');
+      if (textareaRef.current) {
+        textareaRef.current.value = '';
+      }
+    } catch (error) {
+       console.error('Client-side postWhisper failed:', error);
+       toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: 'Could not process your whisper. Please try again.',
+      });
+    } finally {
+        setIsSubmitting(false);
     }
-  }, [formState, toast]);
+  };
   
   const isLoading = isAuthLoading || isPostsLoading;
 
   return (
     <>
-      <form action={formAction} ref={formRef} className="mb-8">
+      <form onSubmit={handleSubmit} className="mb-8">
         <Card>
           <CardContent className="p-4">
             <Textarea
+              ref={textareaRef}
               name="content"
               placeholder="Share a thought, a feeling, a moment..."
               className="min-h-24 resize-none border-0 px-0 shadow-none focus-visible:ring-0"
               required
               minLength={5}
-              disabled={!user}
+              disabled={!user || isSubmitting}
+              value={content}
+              onChange={(e) => setContent(e.target.value)}
             />
-            <input type="hidden" name="userId" value={user?.uid || ''} />
             <div className="flex justify-end">
-              <PostForm />
+               <Button type="submit" disabled={isSubmitting || !user || content.trim().length < 5} className="mt-2">
+                {isSubmitting ? 'Whispering...' : 'Whisper'}
+              </Button>
             </div>
           </CardContent>
         </Card>

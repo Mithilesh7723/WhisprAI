@@ -3,7 +3,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { useAnonymousSignIn } from '@/lib/hooks/use-anonymous-sign-in';
-import { sendChatMessage } from '@/lib/actions';
+import { runAiChat } from '@/lib/actions';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -14,7 +14,9 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { HelplinePanel } from '@/components/helpline-panel';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
-import { collection, query, where, limit } from 'firebase/firestore';
+import { collection, query, where, limit, doc, setDoc } from 'firebase/firestore';
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError } from '@/firebase/errors';
 
 export default function Chat() {
   const { user, isLoading: isAuthLoading } = useAnonymousSignIn();
@@ -23,10 +25,10 @@ export default function Chat() {
   const [isLoading, setIsLoading] = useState(false);
   const [isEscalated, setIsEscalated] = useState(false);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
+  const [sessionId, setSessionId] = useState<string | undefined>(undefined);
 
   const firestore = useFirestore();
 
-  // Query for the user's chat history
   const chatQuery = useMemoFirebase(() => {
     if (!firestore || !user?.uid) return null;
     return query(collection(firestore, 'aiChats'), where('userId', '==', user.uid), limit(1));
@@ -34,14 +36,17 @@ export default function Chat() {
 
   const { data: chatHistory, isLoading: isHistoryLoading } = useCollection<AIChat>(chatQuery);
 
-  // Set initial messages from history
   useEffect(() => {
     if (chatHistory && chatHistory.length > 0) {
-      setMessages(chatHistory[0].messages || []);
-      setIsEscalated(chatHistory[0].escalated || false);
+      const chat = chatHistory[0];
+      setMessages(chat.messages || []);
+      setIsEscalated(chat.escalated || false);
+      setSessionId(chat.id);
     } else {
         setMessages([]);
         setIsEscalated(false);
+        // We will generate a session ID when the first message is sent if one doesn't exist.
+        setSessionId(undefined);
     }
   }, [chatHistory]);
 
@@ -61,36 +66,71 @@ export default function Chat() {
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!input.trim() || !user?.uid || isLoading) return;
+    if (!input.trim() || !user?.uid || isLoading || !firestore) return;
 
     const userMessage: ChatMessage = {
       sender: 'user',
       text: input,
       timestamp: new Date().toISOString(),
     };
-    const newMessages = [...messages, userMessage];
-    setMessages(newMessages);
+    const currentMessages = [...messages, userMessage];
+    setMessages(currentMessages);
     setInput('');
     setIsLoading(true);
 
-    // We pass the full history to the server action now
-    const res = await sendChatMessage(
-      newMessages,
-      input,
-      user.uid
-    );
-    
-    const aiMessage: ChatMessage = {
-        sender: 'ai',
-        text: res.response,
-        timestamp: new Date().toISOString(),
-    };
+    try {
+      // 1. Get AI response from server action
+      const res = await runAiChat(
+        input,
+        user.uid,
+        sessionId
+      );
+      
+      const aiMessage: ChatMessage = {
+          sender: 'ai',
+          text: res.response,
+          timestamp: new Date().toISOString(),
+      };
 
-    setMessages((prev) => [...prev, aiMessage]);
-    if (res.escalate) {
-        setIsEscalated(true);
+      const finalMessages = [...currentMessages, aiMessage];
+      setMessages(finalMessages);
+      if (res.escalate) {
+          setIsEscalated(true);
+      }
+
+      // 2. Update Firestore from the client
+      let chatDocRef;
+      if (sessionId) {
+        chatDocRef = doc(firestore, 'aiChats', sessionId);
+      } else {
+        chatDocRef = doc(collection(firestore, 'aiChats'));
+        setSessionId(chatDocRef.id);
+      }
+
+      await setDoc(chatDocRef, {
+          userId: user.uid,
+          messages: finalMessages,
+          escalated: res.escalate,
+          lastUpdatedAt: new Date().toISOString()
+      }, { merge: true }).catch(error => {
+         errorEmitter.emit(
+          'permission-error',
+          new FirestorePermissionError({
+            path: chatDocRef.path,
+            operation: 'write',
+            requestResourceData: { escalated: res.escalate },
+          })
+         )
+         throw error;
+      });
+
+    } catch (error) {
+      console.error("Failed to send message or update chat:", error);
+       // Revert optimistic update
+      setMessages(messages);
+    } finally {
+        setIsLoading(false);
     }
-    setIsLoading(false);
   };
 
   const isPageLoading = isAuthLoading || isHistoryLoading;

@@ -4,15 +4,13 @@
 import { revalidatePath } from 'next/cache';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
-import { classifyWhisper } from '@/ai/flows/classify-whisper-messages';
 import { provideAISupportChat } from '@/ai/flows/provide-ai-support-chat';
 import { generateAdminReply } from '@/ai/flows/generate-admin-reply';
-import type { Post, AdminAction, AILabel, ChatMessage, AIChat } from './types';
+import type { Post, AdminAction, AILabel } from './types';
 import {
   getFirestore,
   addDoc,
   collection,
-  serverTimestamp,
   getDocs,
   query,
   orderBy,
@@ -28,14 +26,8 @@ import {
   getAuth,
   signInWithEmailAndPassword,
   signOut,
-  createUserWithEmailAndPassword,
 } from 'firebase/auth';
 import { initializeServerSideFirebase } from '@/firebase/server-init';
-import {
-  setDocumentNonBlocking,
-  addDocumentNonBlocking,
-  updateDocumentNonBlocking,
-} from '@/firebase';
 
 async function getDb() {
   const { firestore } = initializeServerSideFirebase();
@@ -47,123 +39,28 @@ async function getFirebaseAuth() {
   return auth;
 }
 
-// --- USER ACTIONS ---
+// --- AI Action ---
 
-export async function getPosts(filter?: AILabel) {
-  const db = await getDb();
-  const postsRef = collection(db, 'posts');
-  const q = filter
-    ? query(
-        postsRef,
-        where('hidden', '==', false),
-        where('aiLabel', '==', filter),
-        orderBy('createdAt', 'desc')
-      )
-    : query(
-        postsRef,
-        where('hidden', '==', false),
-        orderBy('createdAt', 'desc')
-      );
-
-  const querySnapshot = await getDocs(q);
-  const posts: Post[] = [];
-  querySnapshot.forEach((doc) => {
-    posts.push({ postId: doc.id, ...doc.data() } as Post);
-  });
-  return posts;
-}
-
-export async function postWhisper(
-  prevState: { error?: string; success?: boolean },
-  formData: FormData
-) {
-  const content = formData.get('content') as string;
-  const userId = formData.get('userId') as string;
-
-  if (!content || content.trim().length < 5) {
-    return { error: 'Whisper must be at least 5 characters long.' };
-  }
-  if (!userId) {
-    return { error: 'Could not identify user.' };
-  }
-
-  try {
-    const db = await getDb();
-    const classification = await classifyWhisper({ content });
-    
-    // Use addDoc directly since we are in a server action.
-    await addDoc(collection(db, 'posts'), {
-      userId,
-      content,
-      createdAt: new Date().toISOString(),
-      aiLabel: classification.aiLabel,
-      aiConfidence: classification.aiConfidence,
-      hidden: false,
-    });
-
-    revalidatePath('/feed');
-    revalidatePath('/admin/dashboard');
-    return { success: true };
-  } catch (error) {
-    console.error('AI classification or Firestore write failed:', error);
-    return { error: 'Could not process your whisper. Please try again.' };
-  }
-}
-
-export async function sendChatMessage(
-  history: ChatMessage[],
-  message: string,
-  userId: string
-) {
-  try {
-    const db = await getDb();
-    const chatQuery = query(collection(db, 'aiChats'), where('userId', '==', userId), limit(1));
-    const querySnapshot = await getDocs(chatQuery);
-    let sessionId: string | undefined;
-    let chatDocRef;
-
-    if (querySnapshot.empty) {
-        chatDocRef = doc(collection(db, 'aiChats'));
-        sessionId = chatDocRef.id;
-    } else {
-        chatDocRef = querySnapshot.docs[0].ref;
-        sessionId = chatDocRef.id;
+export async function runAiChat(message: string, userId: string, sessionId: string | undefined) {
+    try {
+        const aiResult = await provideAISupportChat({
+            message,
+            userId,
+            sessionId: sessionId,
+        });
+        return {
+            response: aiResult.response,
+            escalate: aiResult.escalate,
+        };
+    } catch (error) {
+        console.error('AI chat failed:', error);
+        return {
+            response: "I'm having a little trouble connecting right now. Please try again in a moment.",
+            escalate: false,
+        };
     }
-
-    const aiResult = await provideAISupportChat({
-      message,
-      userId,
-      sessionId: sessionId,
-    });
-    
-    const aiMessage: ChatMessage = {
-      sender: 'ai',
-      text: aiResult.response,
-      timestamp: new Date().toISOString(),
-    };
-
-    const updatedMessages = [...history, aiMessage];
-    
-    // We can use setDoc here directly as it's a server action
-    await setDoc(chatDocRef, {
-        userId: userId,
-        messages: updatedMessages,
-        escalated: aiResult.escalate,
-        lastUpdatedAt: new Date().toISOString()
-    }, { merge: true });
-
-    return {
-      response: aiResult.response,
-      escalate: aiResult.escalate,
-    };
-  } catch (error) {
-    console.error('AI chat failed:', error);
-    return {
-      response: "I'm having a little trouble connecting right now. Please try again in a moment.",
-      escalate: false,
-    };
-  }
 }
+
 
 // --- ADMIN ACTIONS ---
 
@@ -212,7 +109,7 @@ export async function adminLogin(
 
   } catch (error: any) {
     console.error("Admin login failed:", error.code, error.message);
-    if (error.code === 'auth/invalid-credential' || error.code === 'auth/user-not-found') {
+    if (error.code === 'auth/invalid-credential' || error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password') {
         return { error: 'Invalid email or password.' };
     }
     return { error: 'An unexpected error occurred during login.' };
