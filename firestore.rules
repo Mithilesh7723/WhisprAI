@@ -55,6 +55,7 @@ service cloud.firestore {
      * @principle Public read/list access, owner-only update/delete, verified identity.
      */
     match /aiChats/{aiChatId} {
+      allow read, write: if isAdmin();
       allow get, list: if true;
       allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
       allow update, delete: if isSignedIn() && isExistingOwner(resource.data.userId);
@@ -76,6 +77,7 @@ service cloud.firestore {
      * @principle Role-based access control, verified identity.
      */
     match /roles_admin/{adminId} {
+      allow read, write: if isAdmin();
       allow get: if isAdmin() || request.auth.uid == adminId;
       allow list: if isAdmin();
       allow create: if request.auth.uid == adminId;
@@ -106,7 +108,7 @@ service cloud.firestore {
     }
 
     function isAdmin() {
-        return exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid));
+        return isSignedIn() && exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid));
     }
   }
 }
