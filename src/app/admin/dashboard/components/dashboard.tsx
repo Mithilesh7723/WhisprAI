@@ -1,39 +1,37 @@
 
 'use client';
 
-import React, { useMemo } from 'react';
+import React from 'react';
 import { Post, AdminAction } from '@/lib/types';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { DataTable } from './data-table';
 import { columns } from './columns';
 import { ActionLog } from './action-log';
-import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
+import { useCollection, useFirestore, useMemoFirebase, useUser } from '@/firebase';
 import { collection, query, orderBy } from 'firebase/firestore';
 
-interface DashboardProps {
-  initialPosts: Post[];
-  initialActions: AdminAction[];
-}
-
-export function Dashboard({ initialPosts, initialActions }: DashboardProps) {
+export function Dashboard() {
   const firestore = useFirestore();
+  // useUser() hook is crucial to ensure we don't query before auth is ready.
+  const { user, isUserLoading } = useUser();
 
   const postsQuery = useMemoFirebase(() => {
-    if (!firestore) return null; 
+    // CRITICAL: Do not create the query until we have a user object.
+    if (!firestore || !user) return null; 
     return query(collection(firestore, 'posts'), orderBy('createdAt', 'desc'));
-  }, [firestore]);
+  }, [firestore, user]);
 
   const actionsQuery = useMemoFirebase(() => {
-    if (!firestore) return null;
+    // CRITICAL: Do not create the query until we have a user object.
+    if (!firestore || !user) return null;
     return query(collection(firestore, 'adminActions'), orderBy('timestamp', 'desc'));
-  }, [firestore]);
+  }, [firestore, user]);
   
-  // useCollection will use initial data and then listen for real-time updates.
   const { data: posts, isLoading: postsLoading } = useCollection<Post>(postsQuery);
   const { data: actions, isLoading: actionsLoading } = useCollection<AdminAction>(actionsQuery);
 
-  const displayPosts = posts ?? initialPosts;
-  const displayActions = actions ?? initialActions;
+  // Determine overall loading state based on auth check and collection loading.
+  const isLoading = isUserLoading || (postsLoading && !posts) || (actionsLoading && !actions);
 
   return (
     <Tabs defaultValue="whispers">
@@ -42,10 +40,10 @@ export function Dashboard({ initialPosts, initialActions }: DashboardProps) {
         <TabsTrigger value="actions">Action Log</TabsTrigger>
       </TabsList>
       <TabsContent value="whispers">
-        <DataTable columns={columns} data={displayPosts} isLoading={postsLoading && !displayPosts.length} />
+        <DataTable columns={columns} data={posts ?? []} isLoading={isLoading} />
       </TabsContent>
       <TabsContent value="actions">
-        <ActionLog actions={displayActions} isLoading={actionsLoading && !displayActions.length} />
+        <ActionLog actions={actions ?? []} isLoading={isLoading} />
       </TabsContent>
     </Tabs>
   );

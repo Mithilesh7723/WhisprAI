@@ -12,7 +12,6 @@ import {
   getDocs,
   query,
   orderBy,
-  limit,
 } from 'firebase/firestore';
 import {
   getAuth,
@@ -106,6 +105,8 @@ export async function adminLogout() {
   redirect('/admin/login');
 }
 
+// These functions are kept for potential server-side use in other parts of the app,
+// but they are no longer used for the initial dashboard page load to prevent auth issues.
 export async function getAllPostsForAdmin(): Promise<Post[]> {
   const { firestore } = initializeServerSideFirebase();
   const postsRef = collection(firestore, 'posts');
