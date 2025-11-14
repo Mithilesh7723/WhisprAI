@@ -1,7 +1,7 @@
 
 'use client';
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useAnonymousSignIn } from '@/lib/hooks/use-anonymous-sign-in';
 import { runAiChat } from '@/lib/actions';
 import { Button } from '@/components/ui/button';
@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { ChatMessage, AIChat } from '@/lib/types';
 import { cn } from '@/lib/utils';
-import { AlertTriangle, Send, Sparkles } from 'lucide-react';
+import { AlertTriangle, RefreshCw, Send, Sparkles } from 'lucide-react';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { HelplinePanel } from '@/components/helpline-panel';
@@ -26,6 +26,7 @@ export default function Chat() {
   const [isEscalated, setIsEscalated] = useState(false);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const [sessionId, setSessionId] = useState<string | undefined>(undefined);
+  const [errorState, setErrorState] = useState<{ messageId: string | null }>({ messageId: null });
 
   const firestore = useFirestore();
 
@@ -45,7 +46,6 @@ export default function Chat() {
     } else {
         setMessages([]);
         setIsEscalated(false);
-        // We will generate a session ID when the first message is sent if one doesn't exist.
         setSessionId(undefined);
     }
   }, [chatHistory]);
@@ -64,29 +64,38 @@ export default function Chat() {
     scrollToBottom();
   }, [messages]);
 
-  const handleSendMessage = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!input.trim() || !user?.uid || isLoading || !firestore) return;
+  const handleSendMessage = useCallback(async (messageContent: string) => {
+    if (!messageContent.trim() || !user?.uid || isLoading || !firestore) return;
+
+    setErrorState({ messageId: null });
+    setIsLoading(true);
 
     const userMessage: ChatMessage = {
       sender: 'user',
-      text: input,
+      text: messageContent,
       timestamp: new Date().toISOString(),
     };
-    const currentMessages = [...messages, userMessage];
-    setMessages(currentMessages);
-    const currentInput = input;
-    setInput('');
-    setIsLoading(true);
+
+    // Optimistically add the user message to the UI
+    const currentMessages = messages.filter(m => m.timestamp !== errorState.messageId);
+    setMessages([...currentMessages, userMessage]);
+
+    // Keep history without the new message for the AI call
+    const historyForAI = [...currentMessages];
 
     try {
       // 1. Get AI response from server action
       const res = await runAiChat(
-        currentInput,
+        messageContent,
         user.uid,
-        messages, // Pass the history
+        historyForAI,
         sessionId
       );
+
+      // If the AI gives a specific error message, handle it.
+      if (res.response.startsWith("I'm having a little trouble")) {
+          throw new Error("AI service connection failed.");
+      }
       
       const aiMessage: ChatMessage = {
           sender: 'ai',
@@ -94,25 +103,26 @@ export default function Chat() {
           timestamp: new Date().toISOString(),
       };
 
-      const finalMessages = [...currentMessages, aiMessage];
-      setMessages(finalMessages);
-      if (res.escalate) {
-          setIsEscalated(true);
-      }
-
-      // 2. Update Firestore from the client
+      const finalMessages = [...currentMessages, userMessage, aiMessage];
+      
+      // 2. Update Firestore from the client with the full exchange
       let chatDocRef;
       if (sessionId) {
         chatDocRef = doc(firestore, 'aiChats', sessionId);
       } else {
-        chatDocRef = doc(collection(firestore, 'aiChats'));
-        setSessionId(chatDocRef.id);
+        // Create a new session ID for the first message
+        const newDocRef = doc(collection(firestore, 'aiChats'));
+        chatDocRef = newDocRef;
+        setSessionId(newDocRef.id);
       }
+      
+      // Final messages for firestore should include the AI response
+      const firestoreMessages = [...historyForAI, userMessage, aiMessage];
 
       await setDoc(chatDocRef, {
           userId: user.uid,
-          messages: finalMessages,
-          escalated: res.escalate,
+          messages: firestoreMessages,
+          escalated: res.escalate || isEscalated, // Persist escalated state
           lastUpdatedAt: new Date().toISOString()
       }, { merge: true }).catch(error => {
          errorEmitter.emit(
@@ -126,13 +136,29 @@ export default function Chat() {
          throw error;
       });
 
+      // Update local state only after successful DB write
+      setMessages(firestoreMessages);
+       if (res.escalate) {
+          setIsEscalated(true);
+      }
+
     } catch (error) {
       console.error("Failed to send message or update chat:", error);
-       // Revert optimistic update
-      setMessages(messages);
+      // On failure, mark the message as errored
+      setErrorState({ messageId: userMessage.timestamp });
+      // Keep the optimistic user message in the list so they can see what failed
+      setMessages([...currentMessages, userMessage]);
+       // Restore the input so the user doesn't lose their message
+      setInput(messageContent);
     } finally {
         setIsLoading(false);
     }
+  }, [user?.uid, isLoading, firestore, messages, sessionId, isEscalated, errorState.messageId]);
+
+  const handleFormSubmit = (e: React.FormEvent) => {
+      e.preventDefault();
+      handleSendMessage(input);
+      setInput('');
   };
 
   const isPageLoading = isAuthLoading || isHistoryLoading;
@@ -150,30 +176,43 @@ export default function Chat() {
                 </div>
             )}
           {messages.map((message, index) => (
-            <div
-              key={index}
-              className={cn(
-                'flex items-end gap-2',
-                message.sender === 'user' ? 'justify-end' : 'justify-start'
-              )}
-            >
-              {message.sender === 'ai' && (
-                <Avatar className="h-8 w-8">
-                  <AvatarFallback className="bg-primary text-primary-foreground">
-                    <Sparkles className="h-4 w-4" />
-                  </AvatarFallback>
-                </Avatar>
-              )}
+            <div key={index}>
               <div
                 className={cn(
-                  'max-w-xs rounded-lg px-4 py-2 md:max-w-md',
-                  message.sender === 'user'
-                    ? 'bg-primary text-primary-foreground'
-                    : 'bg-card border'
+                  'flex items-end gap-2',
+                  message.sender === 'user' ? 'justify-end' : 'justify-start'
                 )}
               >
-                <p className="whitespace-pre-wrap">{message.text}</p>
+                {message.sender === 'ai' && (
+                  <Avatar className="h-8 w-8">
+                    <AvatarFallback className="bg-primary text-primary-foreground">
+                      <Sparkles className="h-4 w-4" />
+                    </AvatarFallback>
+                  </Avatar>
+                )}
+                <div
+                  className={cn(
+                    'max-w-xs rounded-lg px-4 py-2 md:max-w-md',
+                    message.sender === 'user'
+                      ? 'bg-primary text-primary-foreground'
+                      : 'bg-card border'
+                  )}
+                >
+                  <p className="whitespace-pre-wrap">{message.text}</p>
+                </div>
               </div>
+               {errorState.messageId === message.timestamp && message.sender === 'user' && (
+                  <div className="flex justify-end mt-2">
+                    <div className="text-xs text-destructive flex items-center gap-2">
+                      <AlertTriangle className="h-4 w-4" />
+                      <span>Could not get a response.</span>
+                      <Button variant="ghost" size="sm" className="h-auto px-2 py-1 text-xs" onClick={() => handleSendMessage(message.text)}>
+                        <RefreshCw className="mr-1 h-3 w-3" />
+                        Try Again
+                      </Button>
+                    </div>
+                  </div>
+                )}
             </div>
           ))}
           {isLoading && (
@@ -208,7 +247,7 @@ export default function Chat() {
       </ScrollArea>
       <div className="border-t bg-card p-4">
         <form
-          onSubmit={handleSendMessage}
+          onSubmit={handleFormSubmit}
           className="mx-auto flex max-w-2xl items-center gap-2"
         >
           <Input
@@ -228,3 +267,5 @@ export default function Chat() {
     </div>
   );
 }
+
+    
