@@ -69,6 +69,7 @@ export default function Chat() {
 
     setErrorState({ messageId: null });
     setIsLoading(true);
+    setInput('');
 
     const userMessage: ChatMessage = {
       sender: 'user',
@@ -76,16 +77,13 @@ export default function Chat() {
       timestamp: new Date().toISOString(),
     };
 
-    // Optimistically add the user message to the UI
     const currentMessages = messages.filter(m => m.timestamp !== errorState.messageId);
     const updatedMessages = [...currentMessages, userMessage];
     setMessages(updatedMessages);
 
-    // Keep history without the new message for the AI call
     const historyForAI = [...currentMessages];
 
     try {
-      // 1. Get AI response from server action
       const res = await runAiChat(
         messageContent,
         user.uid,
@@ -105,24 +103,21 @@ export default function Chat() {
           timestamp: new Date().toISOString(),
       };
       
-      // 2. Update Firestore from the client with the full exchange
       let chatDocRef;
       if (sessionId) {
         chatDocRef = doc(firestore, 'aiChats', sessionId);
       } else {
-        // Create a new session ID for the first message
         const newDocRef = doc(collection(firestore, 'aiChats'));
         chatDocRef = newDocRef;
         setSessionId(newDocRef.id);
       }
       
-      // Final messages for firestore should include the AI response
       const firestoreMessages = [...historyForAI, userMessage, aiMessage];
 
       await setDoc(chatDocRef, {
           userId: user.uid,
           messages: firestoreMessages,
-          escalated: res.escalate || isEscalated, // Persist escalated state
+          escalated: res.escalate || isEscalated,
           lastUpdatedAt: new Date().toISOString()
       }, { merge: true }).catch(error => {
          errorEmitter.emit(
@@ -136,7 +131,6 @@ export default function Chat() {
          throw error;
       });
 
-      // Update local state only after successful DB write
       setMessages(firestoreMessages);
        if (res.escalate) {
           setIsEscalated(true);
@@ -144,11 +138,8 @@ export default function Chat() {
 
     } catch (error) {
       console.error("Failed to send message or update chat:", error);
-      // On failure, mark the message as errored
       setErrorState({ messageId: userMessage.timestamp });
-      // Keep the optimistic user message in the list so they can see what failed
       setMessages(updatedMessages);
-       // Restore the input so the user doesn't lose their message
       setInput(messageContent);
     } finally {
         setIsLoading(false);
@@ -158,7 +149,6 @@ export default function Chat() {
   const handleFormSubmit = (e: React.FormEvent) => {
       e.preventDefault();
       handleSendMessage(input);
-      setInput('');
   };
 
   const isPageLoading = isAuthLoading || isHistoryLoading;
