@@ -21,6 +21,7 @@ import {
 } from 'firebase/auth';
 import { initializeServerSideFirebase } from '@/firebase/server-init';
 import { Post, AdminAction } from '@/lib/types';
+import { generateAdminReply } from '@/ai/flows/generate-admin-reply';
 
 
 // --- AI Action ---
