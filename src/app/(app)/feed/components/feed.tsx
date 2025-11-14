@@ -105,7 +105,19 @@ export default function Feed() {
         return;
       }
       
-      const classification = await classifyWhisper({ content: originalContent });
+      let classification;
+      try {
+        classification = await classifyWhisper({ content: originalContent });
+      } catch (classifyError: any) {
+         console.error('AI classification failed:', classifyError);
+         toast({
+          variant: 'destructive',
+          title: 'Service Busy',
+          description: 'The AI is a bit overloaded right now. Please try sharing your whisper again in a moment.',
+        });
+        setIsSubmitting(false);
+        return;
+      }
 
       await addDoc(postsCollection, {
         userId: user.uid,
@@ -142,10 +154,8 @@ export default function Feed() {
         }
       } catch (feedbackError) {
         console.error('AI feedback generation failed:', feedbackError);
-        toast({
-            title: 'AI Feedback',
-            description: 'Could not generate AI feedback at this time. Please try again later.'
-        });
+        // Do not show a toast here, as the main post was successful.
+        // It's a non-critical failure.
       }
 
     } catch (error) {
