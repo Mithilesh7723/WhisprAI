@@ -5,11 +5,8 @@ import { Card, CardContent } from '@/components/ui/card';
 import { AppLogo } from '@/components/app-logo';
 import { HelplinePanel } from '@/components/helpline-panel';
 import { ArrowRight, HeartHandshake, ShieldCheck, Waves } from 'lucide-react';
-import { placeholderImages } from '@/lib/placeholder-images';
 
 export default function Home() {
-  const heroImage = placeholderImages.find((img) => img.id === 'hero');
-
   return (
     <div className="flex min-h-screen flex-col">
       <header className="container mx-auto px-4 py-6">
@@ -33,18 +30,16 @@ export default function Home() {
               </Link>
             </Button>
           </div>
-          {heroImage && (
-            <div className="relative h-96 w-full max-w-xl lg:h-[30rem] lg:w-[34rem]">
-              <Image
-                src={heroImage.imageUrl}
-                alt={heroImage.description}
-                fill
-                priority
-                className="rounded-3xl object-cover shadow-2xl shadow-primary/10"
-                data-ai-hint={heroImage.imageHint}
-              />
-            </div>
-          )}
+          <div className="relative h-96 w-full max-w-xl lg:h-[30rem] lg:w-[34rem]">
+            <Image
+              src="/hero-animation.gif"
+              alt="An animation showing a comforting interaction."
+              fill
+              priority
+              unoptimized
+              className="rounded-3xl object-cover shadow-2xl shadow-primary/10"
+            />
+          </div>
         </section>
 
         <section className="bg-secondary py-16 md:py-24">
