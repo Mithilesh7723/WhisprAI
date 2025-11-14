@@ -4,15 +4,7 @@
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { provideAISupportChat } from '@/ai/flows/provide-ai-support-chat';
-import {
-  getFirestore,
-  collection,
-  getDocs,
-  query,
-  orderBy,
-} from 'firebase/firestore';
-import { initializeServerSideFirebase } from '@/firebase/server-init';
-import { Post, AdminAction, ChatMessage } from '@/lib/types';
+import { ChatMessage } from '@/lib/types';
 
 // --- AI Action ---
 
@@ -86,20 +78,4 @@ export async function getAdminSession() {
 export async function adminLogout() {
   cookies().delete(ADMIN_SESSION_COOKIE);
   redirect('/admin/login');
-}
-
-export async function getAllPostsForAdmin(): Promise<Post[]> {
-  const { firestore } = initializeServerSideFirebase();
-  const postsRef = collection(firestore, 'posts');
-  const q = query(postsRef, orderBy('createdAt', 'desc'));
-  const querySnapshot = await getDocs(q);
-  return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Post));
-}
-
-export async function getAdminActions(): Promise<AdminAction[]> {
-  const { firestore } = initializeServerSideFirebase();
-  const actionsRef = collection(firestore, 'adminActions');
-  const q = query(actionsRef, orderBy('timestamp', 'desc'));
-  const querySnapshot = await getDocs(q);
-  return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as AdminAction));
 }

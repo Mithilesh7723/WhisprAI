@@ -48,10 +48,10 @@ const prompt = ai.definePrompt({
 
   Conversation History:
   {{#each history}}
-    {{#if (eq sender "user")}}
-      User: {{{text}}}
+    {{#if (eq this.sender "user")}}
+User: {{{this.text}}}
     {{else}}
-      AI: {{{text}}}
+AI: {{{this.text}}}
     {{/if}}
   {{/each}}
 
