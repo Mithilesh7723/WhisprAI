@@ -1,8 +1,8 @@
 
 'use client';
 
-import React from 'react';
-import { useActionState, useFormStatus } from 'react';
+import React, { useActionState } from 'react';
+import { useFormStatus } from 'react-dom';
 import { adminLogin } from '@/lib/actions';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
@@ -44,7 +44,7 @@ function AdminLoginContent() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {state.error && (
+            {state?.error && (
               <Alert variant="destructive">
                 <AlertTriangle className="h-4 w-4" />
                 <AlertTitle>Login Failed</AlertTitle>
